@@ -21,17 +21,15 @@
 
       var layerUrl = 'https://stamen.carto.com/u/stamen-org/api/v2/viz/ea17c2c0-961c-11e4-97a4-f23c91504230/viz.json';
 
-      cartodb.createLayer(map, layerUrl, {
-        title: true,
-        description: true,
-        search: true,
-        infowindow: true
-      })
+      cartodb.createLayer(map, layerUrl)
         .addTo(map)
         .on('done', function(layer) {
         }).on('error', function() {
           //log the error
         });
+
+      // scale bar
+      L.control.scale().addTo(map);
 
       // Add URL hash for zoom/lat/lon
       var hash = new L.Hash(map);

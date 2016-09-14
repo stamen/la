@@ -1,5 +1,63 @@
 <html>
-<body>
-<iframe width="100%" height="98%" frameborder="0" src="https://stamen.carto.com/u/stamen-org/viz/ea17c2c0-961c-11e4-97a4-f23c91504230/embed_map" allowfullscreen webkitallowfullscreen mozallowfullscreen oallowfullscreen msallowfullscreen></iframe>
+<head>
+  <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/3.11.23/themes/css/cartodb.css" />
+  <script src="http://libs.cartocdn.com/cartodb.js/v3/3.11.23/cartodb.js"></script>
+  <script src="vendor/leaflet-hash.js"></script>
+  <!--[if lte IE 8]>
+    <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v2/themes/css/cartodb.ie.css" />
+  <![endif]-->
+  <style>
+    html, body {width:100%; height:100%; padding: 0; margin: 0;}
+    #cartodb-map { width: 100%; height:100%; background: white;}
+  </style>
+  <script>
+    var map;
+    function init(){
+      // initiate leaflet map
+      map = new L.Map('cartodb-map', { 
+        center: [34.0522,-118.2437],
+        zoom: 14
+      })
+
+      var layerUrl = 'https://stamen.carto.com/u/stamen-org/api/v2/viz/ea17c2c0-961c-11e4-97a4-f23c91504230/viz.json';
+
+      cartodb.createLayer(map, layerUrl, {
+        title: true,
+        description: true,
+        search: true,
+        infowindow: true
+      })
+        .addTo(map)
+        .on('done', function(layer) {
+        }).on('error', function() {
+          //log the error
+        });
+
+      // Add URL hash for zoom/lat/lon
+      var hash = new L.Hash(map);
+    }
+  </script>
+</head>
+<body onload="init()">
+
+  <!-- copied from the default CARTO overlays -->
+
+  <div class="cartodb-overlay overlay-text desktop" style="z-index: 4; max-width: 500px; margin-left: 0px; margin-top: 0px; top: 55px; left: 66px; right: auto; bottom: auto; display: block; background-color: rgba(0, 0, 0, 0.701961);">
+    <div class="content">
+      <div class="text widget_text" style="z-index: 4; color: rgb(255, 255, 255); text-align: left; font-size: 20px;"><strong>
+        Los Angeles buildings and parcels
+      </strong></div>
+    </div>
+  </div>
+  <div class="cartodb-overlay overlay-text desktop" style="z-index: 4; max-width: 300px; margin-left: 0px; margin-top: 0px; top: 119px; left: 66px; right: auto; bottom: auto; display: block; background-color: rgba(0, 0, 0, 0.701961);">
+    <div class="content">
+      <div class="text widget_text" style="z-index: 4; color: rgb(255, 255, 255); text-align: left; font-size: 14px;">
+        Small buildings are dark, and larger buildings are lighter in color.
+        <br>Parcels are the reverse: small parcels are light and larger parcels are darker
+      </div>
+    </div>
+  </div>
+
+  <div id='cartodb-map'></div>
 </body>
 </html>

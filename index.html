@@ -3,6 +3,8 @@
   <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/3.11.23/themes/css/cartodb.css" />
   <script src="http://libs.cartocdn.com/cartodb.js/v3/3.11.23/cartodb.js"></script>
   <script src="vendor/leaflet-hash.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-geocoder-mapzen/1.4.1/leaflet-geocoder-mapzen.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-geocoder-mapzen/1.4.1/leaflet-geocoder-mapzen.js"></script>
   <!--[if lte IE 8]>
     <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v2/themes/css/cartodb.ie.css" />
   <![endif]-->
@@ -21,8 +23,9 @@
 
       var layerUrl = 'https://stamen.carto.com/u/stamen-org/api/v2/viz/ea17c2c0-961c-11e4-97a4-f23c91504230/viz.json';
 
-      cartodb.createLayer(map, layerUrl)
-        .addTo(map)
+      cartodb.createLayer(map, layerUrl, {
+        cartodb_logo:false,
+      }).addTo(map)
         .on('done', function(layer) {
         }).on('error', function() {
           //log the error
@@ -33,6 +36,11 @@
 
       // Add URL hash for zoom/lat/lon
       var hash = new L.Hash(map);
+
+      map.attributionControl.setPrefix('Map by <a href="http://stamen.com">Stamen Design</a>');
+
+      // Mapzen geocoder
+      L.control.geocoder('search-hNyVAbJ').addTo(map);
     }
   </script>
 </head>

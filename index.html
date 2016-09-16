@@ -1,5 +1,6 @@
 <html>
 <head>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
   <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/3.11.23/themes/css/cartodb.css" />
   <script src="http://libs.cartocdn.com/cartodb.js/v3/3.11.23/cartodb.js"></script>
   <script src="vendor/leaflet-hash.js"></script>
@@ -11,6 +12,13 @@
   <style>
     html, body {width:100%; height:100%; padding: 0; margin: 0; background: turquoise;}
     #cartodb-map { width: 100%; height:100%; background: transparent;}
+    #label-control {
+      font-family: 'Helvetica Neue', Helvetica, sans-serif;
+      font-weight: 400;
+      font-size: 14px;
+      line-height: normal;
+      display: block;
+    }
   </style>
   <script>
     var map;
@@ -31,6 +39,10 @@
           //log the error
         });
 
+      var labelLayer = L.tileLayer('http://{s}.tile.stamen.com/toner-labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
+
+      //labelLayer.addTo(map); // off by defaul
+
       // scale bar
       L.control.scale().addTo(map);
 
@@ -41,6 +53,17 @@
 
       // Mapzen geocoder
       L.control.geocoder('search-hNyVAbJ').addTo(map);
+
+      d3.select("#label-control")
+        .append("label")
+          .text("show map labels")
+        .append("input")
+          .property("checked", false)
+          .attr("type", "checkbox")
+          .on("change", function(evt) {
+            if (this.checked) map.addLayer(labelLayer);
+            else map.removeLayer(labelLayer);
+          });
     }
   </script>
 </head>
@@ -64,6 +87,12 @@
     </div>
   </div>
 
+  <div class="cartodb-overlay overlay-text desktop content text widget_text" style="z-index: 4; margin-left: 0px; margin-top: 0px; top: 55px; right: 60px; left: auto: bottom: auto; display: block; background-color: rgba(0, 0, 0, 0.701961);">
+    <div class="content">
+      <div id="label-control" class="text widget_text" style="z-index: 4; color: rgb(255, 255, 255); text-align: left; font-size: 14px;">
+      </div>
+    </div>
+  </div>
   <div id='cartodb-map'></div>
 </body>
 </html>

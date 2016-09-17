@@ -23,6 +23,28 @@
   <script>
     var map;
     function init(){
+
+      var showLabels = false;
+
+      // Parse query parameters:
+      var search_values = location.search.replace('\?','').split('&');
+      search_values.forEach(function(param) {
+        key_value = param.split("=");
+        if (key_value.length == 2) { // skip if it doesn't parse well
+          if (key_value[0] == "labels" && key_value[1] == "true") {
+            showLabels = true;
+          }
+          if (key_value[0] == "background" && key_value[1].match(/^\w+$/)) { // make sure no weird characters
+            if (d3.color(key_value[1])) { // see if d3 parses it as a CSS color
+              d3.select("body").style("background-color", key_value[1]);
+            }
+            if (d3.color('#' + key_value[1])) { // see if d3 parses it as a hex value
+              d3.select("body").style("background-color", '#' + key_value[1]);
+            }
+          }
+        }
+      });
+
       // initiate leaflet map
       map = new L.Map('cartodb-map', { 
         center: [34.0522,-118.2437],
@@ -41,7 +63,8 @@
 
       var labelLayer = L.tileLayer('http://{s}.tile.stamen.com/toner-labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
 
-      //labelLayer.addTo(map); // off by defaul
+      if (showLabels) // off by default
+        labelLayer.addTo(map);
 
       // scale bar
       L.control.scale().addTo(map);
@@ -58,11 +81,39 @@
         .append("label")
           .text("show map labels")
         .append("input")
-          .property("checked", false)
+          .property("checked", showLabels)
           .attr("type", "checkbox")
           .on("change", function(evt) {
-            if (this.checked) map.addLayer(labelLayer);
-            else map.removeLayer(labelLayer);
+            if (this.checked) {
+              map.addLayer(labelLayer);
+              var location_string = location.href;
+              if (location_string.match("labels=false")) {
+                history.pushState({},null,location_string.replace("labels=false","labels=true"));
+              } else {
+                // if it's not in the URL
+                // then there might not be a '?' either:
+                if (location_string.match("\\?")) // means there's already a search query
+                  history.pushState({},null,location_string.replace("#","&labels=true#"));
+                else
+                  history.pushState({},null,location_string.replace("#","?labels=true#"));
+              }
+            } else {
+              map.removeLayer(labelLayer);
+              var location_string = location.href;
+              if (location_string.match("labels=true")) {
+                history.pushState({},null,location_string.replace("labels=true","labels=false"));
+              } else {
+                // if it's not in the URL
+                // then there might not be a '?' either:
+                if (location_string.match("\\?")) // means there's already a search query
+                  history.pushState({},null,location_string.replace("#","&labels=false#"));
+                else
+                  history.pushState({},null,location_string.replace("#","?labels=false#"));
+              }
+            }
+
+            // update the URL location
+            //var location_string = location;
           });
     }
   </script>

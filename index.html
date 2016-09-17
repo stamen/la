@@ -51,6 +51,38 @@
         zoom: 14
       })
 
+/*
+      var parcels_style = [
+        "#lacounty_parcels{",
+        "  polygon-fill: #F7F7F7;",
+        "  polygon-opacity: 1;",
+        "  line-color: #FFF;",
+        "  line-width: 0;",
+        "  line-opacity: 1;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 183259633.853] {",
+        "   polygon-fill: #252525;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 18749.2191] {",
+        "   polygon-fill: #525252;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 9615.76605] {",
+        "   polygon-fill: #737373;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 7550.60995] {",
+        "   polygon-fill: #969696;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 6661.9965] {",
+        "   polygon-fill: #BDBDBD;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 5924.23825] {",
+        "   polygon-fill: #D9D9D9;",
+        "}",
+        "#lacounty_parcels [ shape_area <= 5043.57735] {",
+        "   polygon-fill: #F7F7F7;",
+        "}"
+      ].join('\n');
+
       var buildings_style = [
         "#lariac_buildings_2008{",
         "  polygon-fill: #252525;",
@@ -81,38 +113,100 @@
         "   polygon-fill: #252525;",
         "}"
       ].join('\n');
-
-      var parcels_style = [
+*/
+      var parcels_style_1 = [
         "#lacounty_parcels{",
-        "  polygon-fill: #F7F7F7;",
-        "  polygon-opacity: 1;",
-        "  line-color: #FFF;",
-        "  line-width: 0;",
-        "  line-opacity: 1;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 183259633.853] {",
         "   polygon-fill: #252525;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 18749.2191] {",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+      var parcels_style_2 = [
+        "#lacounty_parcels{",
         "   polygon-fill: #525252;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 9615.76605] {",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+      var parcels_style_3 = [
+        "#lacounty_parcels{",
         "   polygon-fill: #737373;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 7550.60995] {",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+      var parcels_style_4 = [
+        "#lacounty_parcels{",
         "   polygon-fill: #969696;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 6661.9965] {",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+      var parcels_style_5 = [
+        "#lacounty_parcels{",
         "   polygon-fill: #BDBDBD;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 5924.23825] {",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+      var parcels_style_6 = [
+        "#lacounty_parcels{",
         "   polygon-fill: #D9D9D9;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 5043.57735] {",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+      var parcels_style_7 = [
+        "#lacounty_parcels{",
         "   polygon-fill: #F7F7F7;",
-        "}",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
       ].join('\n');
 
+      var buildings_style_1 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #252525;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+      var buildings_style_2 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #525252;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+      var buildings_style_3 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #737373;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+      var buildings_style_4 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #969696;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+      var buildings_style_5 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #BDBDBD;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+      var buildings_style_6 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #D9D9D9;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+      var buildings_style_7 = [
+        "#lariac_buildings_2008{",
+        "   polygon-fill: #F7F7F7;",
+        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
+        "}"
+      ].join('\n');
+
+/*
       // Add parcels layer
       cartodb.createLayer(map, {
         user_name: 'stamen-org',
@@ -124,7 +218,113 @@
       }, {
         cartodb_logo:false,
       }).addTo(map);
+*/
 
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 18749.219",
+          cartocss: parcels_style_1
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 9615.766 AND shape_area <= 18749.219",
+          cartocss: parcels_style_2
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 7550.610 AND shape_area <= 9615.766",
+          cartocss: parcels_style_3
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 6661.997 AND shape_area <= 7550.610",
+          cartocss: parcels_style_4
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 5924.238 AND shape_area <= 6661.997",
+          cartocss: parcels_style_5
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 5043.577 AND shape_area <= 5924.238",
+          cartocss: parcels_style_6
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lacounty_parcels WHERE shape_area <= 5043.577",
+          cartocss: parcels_style_7
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
+
+
+
+
+
+
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area <= 437.622",
+          cartocss: buildings_style_1
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 437.622 AND shape_area <= 830.578",
+          cartocss: buildings_style_2
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 830.578 AND shape_area <= 1424.776",
+          cartocss: buildings_style_3
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 1424.776 AND shape_area <= 1904.961",
+          cartocss: buildings_style_4
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 1904.961 AND shape_area <= 2379.882",
+          cartocss: buildings_style_5
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 2379.882 AND shape_area <= 3074.368",
+          cartocss: buildings_style_6
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
+        sublayers: [{
+          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 3074.368",
+          cartocss: buildings_style_7
+        }]
+      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
+
+/*
       // Add buildings layer
       cartodb.createLayer(map, {
         user_name: 'stamen-org',
@@ -136,6 +336,7 @@
       }, {
         cartodb_logo:false,
       }).addTo(map);
+*/
 
       var labelLayer = L.tileLayer('http://{s}.tile.stamen.com/toner-labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
 

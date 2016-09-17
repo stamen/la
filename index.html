@@ -338,6 +338,15 @@
       }).addTo(map);
 */
 
+
+      // then finally add the full thing to get the correct blending effects
+      var layerUrl = 'https://stamen.carto.com/u/stamen-org/api/v2/viz/ea17c2c0-961c-11e4-97a4-f23c91504230/viz.json';
+
+      cartodb.createLayer(map, layerUrl, {
+         cartodb_logo:false,
+      }).addTo(map).done(function(layer) { layer.setZIndex(3); })
+
+
       var labelLayer = L.tileLayer('http://{s}.tile.stamen.com/toner-labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
 
       if (showLabels) // off by default
@@ -423,6 +432,7 @@
   </div>
   <div id='cartodb-map'></div>
 <!-- cut and paste legend from the one on CARTO. Will rebuild it later -->
+<!--
 <div class="cartodb-legend-stack" style="display: block;"><div class="cartodb-legend choropleth" style="display: block;">
 <div class="legend-title">Building Area</div><ul><li class="min">		437.62</li><li class="max">		1507358.02</li><li class="graph count_441">	<div class="colors">
 	<div class="quartile" style="background-color:#252525"></div>
@@ -442,5 +452,6 @@
 	<div class="quartile" style="background-color:#525252"></div>
 	<div class="quartile" style="background-color:#252525"></div>
 	</div></li></ul></div></div>
+-->
 </body>
 </html>

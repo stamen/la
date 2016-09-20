@@ -25,6 +25,8 @@
     function init(){
 
       var showLabels = false;
+      var showBuildings = true;
+      var showParcels = true;
 
       // Parse query parameters:
       var search_values = location.search.replace('\?','').split('&');
@@ -51,7 +53,6 @@
         zoom: 14
       })
 
-/*
       var parcels_style = [
         "#lacounty_parcels{",
         "  polygon-fill: #F7F7F7;",
@@ -113,7 +114,7 @@
         "   polygon-fill: #252525;",
         "}"
       ].join('\n');
-*/
+
       var parcels_style_1 = [
         "#lacounty_parcels{",
         "   polygon-fill: #252525;",
@@ -206,7 +207,8 @@
         "}"
       ].join('\n');
 
-/*
+      var mapLayers = {};
+
       // Add parcels layer
       cartodb.createLayer(map, {
         user_name: 'stamen-org',
@@ -217,9 +219,9 @@
         }]
       }, {
         cartodb_logo:false,
-      }).addTo(map);
-*/
+      }).addTo(map).done(function(layer) { mapLayers['parcels'] = layer; layer.setZIndex(2); })
 
+/*
       cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
         sublayers: [{
           sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 18749.219",
@@ -324,7 +326,7 @@
         }]
       }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
 
-/*
+*/
       // Add buildings layer
       cartodb.createLayer(map, {
         user_name: 'stamen-org',
@@ -335,8 +337,7 @@
         }]
       }, {
         cartodb_logo:false,
-      }).addTo(map);
-*/
+      }).addTo(map).done(function(layer) { mapLayers['buildings'] = layer; layer.setZIndex(3); })
 
 
       // then finally add the full thing to get the correct blending effects
@@ -344,7 +345,7 @@
 
       cartodb.createLayer(map, layerUrl, {
          cartodb_logo:false,
-      }).addTo(map).done(function(layer) { layer.setZIndex(3); })
+      }).addTo(map).done(function(layer) { mapLayers['everything'] = layer; layer.setZIndex(4); })
 
 
       var labelLayer = L.tileLayer('http://{s}.tile.stamen.com/toner-labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
@@ -364,6 +365,7 @@
       L.control.geocoder('search-hNyVAbJ').addTo(map);
 
       d3.select("#label-control")
+        .append("div")
         .append("label")
           .text("show map labels")
         .append("input")
@@ -401,6 +403,45 @@
             // update the URL location
             //var location_string = location;
           });
+
+      d3.select("#label-control")
+        .append("div")
+        .append("label")
+          .text("show buildings")
+        .append("input")
+          .property("checked", showBuildings)
+          .attr("type", "checkbox")
+          .on("change", function(evt) {
+            if (this.checked) {
+              map.addLayer(mapLayers['buildings']);
+              if (showParcels)
+                map.addLayer(mapLayers['everything']);
+            } else {
+              map.removeLayer(mapLayers['buildings']);
+              if (showParcels)
+                map.removeLayer(mapLayers['everything']);
+            }
+          });
+
+      d3.select("#label-control")
+        .append("div")
+        .append("label")
+          .text("show parcels")
+        .append("input")
+          .property("checked", showParcels)
+          .attr("type", "checkbox")
+          .on("change", function(evt) {
+            if (this.checked) {
+              map.addLayer(mapLayers['parcels']);
+              if (showBuildings)
+                map.addLayer(mapLayers['everything']);
+            } else {
+              map.removeLayer(mapLayers['parcels']);
+              if (showBuildings)
+                map.removeLayer(mapLayers['everything']);
+            }
+          });
+
     }
   </script>
 </head>

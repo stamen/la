@@ -349,7 +349,7 @@
       }).addTo(map).done(function(layer) { mapLayers['everything'] = layer; layer.setZIndex(4); })
 
 
-      var labelLayer = L.tileLayer('https://tiles.stadiamaps.com/stamen_toner_labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
+      var labelLayer = L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
 
       if (showLabels) // off by default
         labelLayer.addTo(map);

@@ -4,25 +4,40 @@ Experiments for rebuilding la.stamen.com on a static stack: MapLibre + PMTiles i
 storage, with **pre-rendered raster tiles at low zoom** (to keep the dense sub-pixel texture the old
 Mapnik/CARTO version had) and **vector tiles at high zoom**.
 
-Status: buildings only (Overture Maps, which in LA mostly comes from OSM's LARIAC import).
-Parcels are pending network access to LA County's GIS hosts.
+Status: working end to end for a ~65 x 40 km study window over central LA, using 2025 Assessor
+parcels (1.46M) and 2020 LARIAC building outlines (2.02M) from LA County's ArcGIS Online services.
+
+| zoom | view |
+|---|---|
+| z11 (raster) | ![z11](docs/viewer_z11.webp) |
+| z12 (raster) | ![z12](docs/viewer_z12.webp) |
+| z14 (raster/vector crossfade starts) | ![z14](docs/viewer_z14.webp) |
+| z15 (vector) | ![z15](docs/viewer_z15.webp) |
 
 ## Pipeline
 
 ```sh
 pip install skia-python shapely pyarrow numpy pillow pmtiles
-python fetch_overture_buildings.py data/buildings.parquet     # ~2M footprints, central LA
-python prep.py data/buildings.parquet data/buildings.npz --layer buildings
-python experiment.py      # native / pyramid / aliased renders at z11-13 -> out/
-python compare.py         # out/sheet_crops.png
-python build_raster_tiles.py data/la-raster.pmtiles           # z9-14 @2x WebP tiles
-python export_geojsonseq.py data/buildings.parquet --layer buildings > data/buildings.geojsonl
-tippecanoe -o data/la-vector.pmtiles -l buildings -Z13 -z16 --drop-rate=1 \
-  --no-feature-limit --no-tile-size-limit --no-tiny-polygon-reduction data/buildings.geojsonl
+python fetch_arcgis.py parcels data/parcels.parquet                 # ~20 min, resumable
+python fetch_arcgis.py buildings data/lariac_buildings.parquet      # ~30 min, resumable
+python prep.py data/parcels.parquet data/parcels.npz --layer parcels --area-field area_ft2
+python prep.py data/lariac_buildings.parquet data/buildings.npz --layer buildings --area-field area_ft2
+python experiment.py && python compare.py        # method comparison -> out/sheet_crops.png
+python build_raster_tiles.py data/la-raster.pmtiles                 # z9-14 @2x WebP, ~15 min on 4 cores
+python export_geojsonseq.py data/parcels.parquet --layer parcels --area-field area_ft2 > data/parcels.geojsonl
+python export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --area-field area_ft2 > data/buildings.geojsonl
+tippecanoe -o data/la-vector.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
+  --no-tiny-polygon-reduction --detect-shared-borders \
+  -L parcels:data/parcels.geojsonl -L buildings:data/buildings.geojsonl
+# view: serve web/ with the two .pmtiles under web/tiles/ (any static host with Range support),
+# or screenshot offline: cd web && TILES_DIR=../data node screenshot.mjs out 14/34.0715/-118.336
 ```
 
 ## Files
 
+- `fetch_arcgis.py` - parcels and LARIAC buildings from LA County's ArcGIS Online feature services
+- `fetch_overture_buildings.py` - Overture buildings (earlier stand-in, not used now)
+- `web/index.html` - the MapLibre viewer; `web/screenshot.mjs` - Playwright screenshots
 - `area.py` - study area (1024x640 px at z11 around Koreatown) and Web Mercator helpers
 - `palette.py` - original 7-class Greys palette and `shape_area` breaks from the 2016 `index.html`
 - `render.py` - Skia renderer: each polygon drawn separately with coverage anti-aliasing, transparent background
@@ -30,9 +45,25 @@ tippecanoe -o data/la-vector.pmtiles -l buildings -Z13 -z16 --drop-rate=1 \
 - `build_raster_tiles.py` - low-zoom raster PMTiles
 - `export_geojsonseq.py` - input for tippecanoe
 
-## Findings so far (buildings only)
+## Findings
 
-![comparison](docs/comparison_buildings_only.png)
+**Rendering method.** Parcels share every edge. Drawing each polygon with its own anti-aliasing
+(as Mapnik did) leaks background through every seam: at z11 the window shows 39.5% background
+versus 28.5% true non-parcel area, which tints dense neighborhoods turquoise. Rendering without
+AA at 8x resolution and box-averaging ("supersampled") gives exactly the true coverage at every
+zoom, so only real streets show the background. `build_raster_tiles.py` uses that.
+
+![parcels comparison](docs/comparison_parcels_only.png)
+
+Earlier buildings-only comparison (Overture data):
+
+![buildings comparison](docs/comparison_buildings_only.png)
+
+**Data.** 2025 parcels and 2020 buildings still split almost evenly across the seven 2016
+quantile classes, so the original breaks are kept unchanged. `Shape__Area` (parcels) and `AREA`
+(buildings) are square feet, within 0.25% of areas computed from the geometry.
+
+**Sizes for the study window.** Raster z9-14: 858 tiles, 83 MB. Vector z13-16: 267 MB.
 
 - The 2008 class breaks still split today's ~2M buildings into seven nearly equal classes.
 - Rendering each zoom natively and rendering at z15 then averaging down look nearly identical for

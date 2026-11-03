@@ -1,10 +1,17 @@
 """Pre-render the low-zoom raster tiles into a PMTiles archive.
 
 Tiles are 512x512 px images for each 256 px tile slot ("@2x"), so they stay
-crisp on high-DPI screens; MapLibre loads them with tileSize 256.  Each zoom is
-rendered natively from the full data (the "native" method in experiment.py),
-in large tile-aligned chunks that are then sliced, so each polygon is drawn
-about once per zoom instead of once per tile.
+crisp on high-DPI screens; MapLibre loads them with tileSize 256.
+
+Each zoom is supersampled (the "supersampled" method in experiment.py): the
+full-resolution data is drawn WITHOUT anti-aliasing at SS x the tile
+resolution, then box-averaged down. Every sample belongs to exactly one
+polygon, so shared parcel edges leak no background and sub-pixel buildings
+and parcels contribute exactly their area. Rendering each zoom with per-polygon
+anti-aliasing instead (Mapnik's approach) leaks the background through every
+parcel seam and adds ~10 points of extra turquoise at z11.
+
+Rendering happens in tile-aligned chunks that are then sliced.
 
 Output tiles are lossless WebP with transparency: the page's CSS background
 color shows through streets and the gaps between shapes.
@@ -12,6 +19,7 @@ color shows through streets and the gaps between shapes.
 import argparse
 import io
 import math
+import multiprocessing as mp
 import time
 
 import numpy as np
@@ -20,7 +28,7 @@ from pmtiles.tile import Compression, TileType, zxy_to_tileid
 from pmtiles.writer import Writer
 
 from area import ORIGIN, lonlat_window
-from render import Layer, render
+from render import Layer, downsample, render
 
 SCALE = 2  # pixels per CSS pixel
 
@@ -47,34 +55,55 @@ def encode(rgba_premul):
     return buf.getvalue()
 
 
+LAYERS, SS = None, None
+
+
+def render_chunk(job):
+    """Render nx x ny tiles starting at (cx, cy) and return {tileid: webp bytes}."""
+    z, cx, cy, nx, ny = job
+    px = 256 * SCALE
+    mx, my, size = tile_origin(cx, cy, z)
+    big = render(LAYERS, z, mx, my, nx * px * SS, ny * px * SS,
+                 antialias=False, scale_mpp=size / (px * SS))
+    img = downsample(big, SS)
+    del big
+    out = {}
+    for j in range(ny):
+        for i in range(nx):
+            t = img[j * px:(j + 1) * px, i * px:(i + 1) * px]
+            if t[..., 3].any():
+                out[zxy_to_tileid(z, cx + i, cy + j)] = encode(t)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--layers", nargs="+", default=["parcels", "buildings"], help="draw order")
     ap.add_argument("--minzoom", type=int, default=9)
     ap.add_argument("--maxzoom", type=int, default=14)
-    ap.add_argument("--chunk", type=int, default=8, help="chunk width in tiles")
+    ap.add_argument("--supersample", type=int, default=8, help="samples per output pixel, per axis")
+    ap.add_argument("--chunk-px", type=int, default=4096, help="max rendered chunk width in pixels")
+    ap.add_argument("--workers", type=int, default=mp.cpu_count())
     args = ap.parse_args()
 
-    layers = [Layer(n, f"data/{n}.npz") for n in args.layers]
+    global LAYERS, SS
+    LAYERS = [Layer(n, f"data/{n}.npz") for n in args.layers]  # inherited by forked workers
+    SS = args.supersample
     w, s, e, n = lonlat_window()
     tiles = {}
-    for z in range(args.minzoom, args.maxzoom + 1):
-        t0 = time.time()
-        tx0, ty0 = lonlat_to_tile(w, n, z)
-        tx1, ty1 = lonlat_to_tile(e, s, z)
-        px = 256 * SCALE
-        for cy in range(ty0, ty1 + 1, args.chunk):
-            for cx in range(tx0, tx1 + 1, args.chunk):
-                nx, ny = min(args.chunk, tx1 + 1 - cx), min(args.chunk, ty1 + 1 - cy)
-                mx, my, size = tile_origin(cx, cy, z)
-                img = render(layers, z, mx, my, nx * px, ny * px, scale_mpp=size / px)
-                for j in range(ny):
-                    for i in range(nx):
-                        t = img[j * px:(j + 1) * px, i * px:(i + 1) * px]
-                        if t[..., 3].any():
-                            tiles[zxy_to_tileid(z, cx + i, cy + j)] = encode(t)
-        print(f"z{z}: tiles x {tx0}-{tx1}, y {ty0}-{ty1}  ({time.time() - t0:.0f}s)")
+    px = 256 * SCALE
+    with mp.get_context("fork").Pool(args.workers) as pool:
+        for z in range(args.minzoom, args.maxzoom + 1):
+            t0 = time.time()
+            tx0, ty0 = lonlat_to_tile(w, n, z)
+            tx1, ty1 = lonlat_to_tile(e, s, z)
+            chunk = max(1, args.chunk_px // (px * SS))
+            jobs = [(z, cx, cy, min(chunk, tx1 + 1 - cx), min(chunk, ty1 + 1 - cy))
+                    for cy in range(ty0, ty1 + 1, chunk) for cx in range(tx0, tx1 + 1, chunk)]
+            for result in pool.imap_unordered(render_chunk, jobs):
+                tiles.update(result)
+            print(f"z{z}: tiles x {tx0}-{tx1}, y {ty0}-{ty1}  ({time.time() - t0:.0f}s)", flush=True)
 
     with open(args.out, "wb") as f:
         wr = Writer(f)

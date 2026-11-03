@@ -7,6 +7,10 @@
   aliased  - render each zoom with anti-aliasing off: a rough stand-in for a
              GPU vector renderer, where a sub-pixel triangle covers a pixel
              fully or not at all
+  supersampled - like pyramid, but the base is rendered WITHOUT anti-aliasing.
+             Every sub-pixel then belongs to exactly one polygon, so shared
+             parcel edges leak no background; the box filter supplies the
+             anti-aliasing. Only real gaps (streets) show the background.
 
 Outputs transparent RGBA PNGs in out/, one per method and zoom.
 """
@@ -36,6 +40,7 @@ def main():
     ap.add_argument("--pyramid-base", type=int, default=15)
     ap.add_argument("--chunk", type=int, default=4096)
     ap.add_argument("--out", default="out")
+    ap.add_argument("--skip-existing", action="store_true", help="reuse existing native/aliased renders")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
@@ -47,6 +52,8 @@ def main():
         return BASE_SIZE[0] * f, BASE_SIZE[1] * f
 
     for method, aa in (("native", True), ("aliased", False)):
+        if args.skip_existing and all(os.path.exists(f"{args.out}/{method}_z{z}.png") for z in ZOOMS):
+            continue
         for z in ZOOMS:
             t = time.time()
             w, h = size_at(z)
@@ -54,24 +61,25 @@ def main():
             save(img, f"{args.out}/{method}_z{z}.png")
             print(f"{method} z{z} {w}x{h}: {time.time() - t:.1f}s")
 
-    # Pyramid: render the base zoom in chunks, downsample each chunk to every target zoom.
-    t = time.time()
+    # Render the base zoom in chunks, downsample each chunk to every target zoom.
+    from area import meters_per_pixel
     bz = args.pyramid_base
     bw, bh = size_at(bz)
-    outs = {z: np.zeros((size_at(z)[1], size_at(z)[0], 4), np.uint8) for z in ZOOMS}
-    from area import meters_per_pixel
     mpp = meters_per_pixel(bz)
-    for cy in range(0, bh, args.chunk):
-        for cx in range(0, bw, args.chunk):
-            cw, ch = min(args.chunk, bw - cx), min(args.chunk, bh - cy)
-            tile = render(layers, bz, x0 + cx * mpp, y1 - cy * mpp, cw, ch)
-            for z in ZOOMS:
-                f = 2 ** (bz - z)
-                small = downsample(tile, f)
-                outs[z][cy // f: cy // f + small.shape[0], cx // f: cx // f + small.shape[1]] = small
-    for z in ZOOMS:
-        save(outs[z], f"{args.out}/pyramid_z{z}.png")
-    print(f"pyramid from z{bz} ({bw}x{bh}): {time.time() - t:.1f}s")
+    for method, aa in (("pyramid", True), ("supersampled", False)):
+        t = time.time()
+        outs = {z: np.zeros((size_at(z)[1], size_at(z)[0], 4), np.uint8) for z in ZOOMS}
+        for cy in range(0, bh, args.chunk):
+            for cx in range(0, bw, args.chunk):
+                cw, ch = min(args.chunk, bw - cx), min(args.chunk, bh - cy)
+                tile = render(layers, bz, x0 + cx * mpp, y1 - cy * mpp, cw, ch, antialias=aa)
+                for z in ZOOMS:
+                    f = 2 ** (bz - z)
+                    small = downsample(tile, f)
+                    outs[z][cy // f: cy // f + small.shape[0], cx // f: cx // f + small.shape[1]] = small
+        for z in ZOOMS:
+            save(outs[z], f"{args.out}/{method}_z{z}.png")
+        print(f"{method} from z{bz} ({bw}x{bh}): {time.time() - t:.1f}s")
 
 
 if __name__ == "__main__":

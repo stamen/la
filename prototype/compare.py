@@ -11,10 +11,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 from render import composite
 
-METHODS = ["native", "pyramid", "aliased"]
+METHODS = ["native", "pyramid", "supersampled", "aliased"]
 LABELS = {
-    "native": "native coverage AA (Mapnik-like)",
-    "pyramid": "rendered at z15, averaged down",
+    "native": "each zoom with AA (Mapnik-like)",
+    "pyramid": "z15 with AA, averaged down",
+    "supersampled": "z15 without AA, averaged down",
     "aliased": "no AA (GPU-like approximation)",
 }
 
@@ -38,7 +39,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="out")
     ap.add_argument("--bg", default="#40E0D0")  # CSS turquoise
-    ap.add_argument("--crop", type=int, nargs=2, default=[480, 360])
+    ap.add_argument("--crop", type=int, nargs=2, default=[400, 300])
     args = ap.parse_args()
     cw, ch = args.crop
     pad, head, side = 12, 30, 70

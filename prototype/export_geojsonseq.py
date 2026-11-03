@@ -33,7 +33,7 @@ def main():
         area = shapely.area(shapely.transform(geoms, to_merc)) * np.cos(np.radians(lat)) ** 2 * M2_TO_FT2
     cls = classify(area, args.layer)
     out = sys.stdout
-    for g, c in zip(shapely.to_geojson(shapely.set_precision(geoms, 1e-7)), cls):
+    for g, c in zip(shapely.to_geojson(geoms), cls):
         out.write(f'{{"type":"Feature","properties":{{"c":{int(c)}}},"geometry":{g}}}\n')
 
 

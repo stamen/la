@@ -32,7 +32,7 @@ def save(rgba, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--layers", nargs="+", default=["buildings"], help="draw order, e.g. parcels buildings")
+    ap.add_argument("--layers", nargs="+", default=["parcels", "buildings"], help="draw order")
     ap.add_argument("--pyramid-base", type=int, default=15)
     ap.add_argument("--chunk", type=int, default=4096)
     ap.add_argument("--out", default="out")

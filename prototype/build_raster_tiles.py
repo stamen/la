@@ -50,7 +50,7 @@ def encode(rgba_premul):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
-    ap.add_argument("--layers", nargs="+", default=["buildings"])
+    ap.add_argument("--layers", nargs="+", default=["parcels", "buildings"], help="draw order")
     ap.add_argument("--minzoom", type=int, default=9)
     ap.add_argument("--maxzoom", type=int, default=14)
     ap.add_argument("--chunk", type=int, default=8, help="chunk width in tiles")
@@ -91,7 +91,7 @@ def main():
                 "center_zoom": 12,
                 "center_lon_e7": int(-118.30 * 1e7), "center_lat_e7": int(34.06 * 1e7),
             },
-            {"name": "la-stamen low-zoom raster", "attribution": "Stamen Design; buildings © Overture Maps / OpenStreetMap"},
+            {"name": "la-stamen low-zoom raster", "attribution": "Stamen Design; parcels and buildings: County of Los Angeles (Assessor, LARIAC)"},
         )
     total = sum(len(v) for v in tiles.values())
     print(f"wrote {len(tiles)} tiles, {total / 1e6:.1f} MB to {args.out}")

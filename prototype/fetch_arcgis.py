@@ -15,6 +15,7 @@ Usage:
 import argparse
 import concurrent.futures as cf
 import json
+import os
 import time
 
 import pyarrow as pa
@@ -57,27 +58,50 @@ def main():
     ap.add_argument("layer", choices=LAYERS)
     ap.add_argument("out")
     ap.add_argument("--bbox", default=",".join(map(str, DEFAULT_BBOX)))
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", type=int, default=16)
     args = ap.parse_args()
     cfg = LAYERS[args.layer]
 
     spatial = dict(geometry=args.bbox, geometryType="esriGeometryEnvelope", inSR=4326,
-                   spatialRel="esriSpatialRelIntersects", where=cfg["where"])
-    n = get(cfg["url"] + "/query", dict(spatial, returnCountOnly="true", f="json"))["count"]
-    print(f"{args.layer}: {n:,} features in bbox")
+                   spatialRel="esriSpatialRelIntersects")
+    n = get(cfg["url"] + "/query", dict(spatial, where=cfg["where"], returnCountOnly="true", f="json"))["count"]
+    stats = get(cfg["url"] + "/query", dict(where="1=1", f="json", outStatistics=json.dumps([
+        {"statisticType": "min", "onStatisticField": "OBJECTID", "outStatisticFieldName": "lo"},
+        {"statisticType": "max", "onStatisticField": "OBJECTID", "outStatisticFieldName": "hi"}])))
+    lo, hi = (stats["features"][0]["attributes"][k] for k in ("lo", "hi"))
+    print(f"{args.layer}: {n:,} features in bbox; OBJECTID {lo}..{hi}")
 
-    def page(offset):
+    # Page by fixed OBJECTID ranges rather than resultOffset: deep offsets get
+    # slower and start failing on hosted feature services, while a range of
+    # PAGE ids can never exceed the PAGE-record limit. Pages are cached so an
+    # interrupted download resumes where it stopped.
+    cache = os.path.join(os.path.dirname(os.path.abspath(args.out)), f"cache_{args.layer}")
+    os.makedirs(cache, exist_ok=True)
+
+    def page(start):
+        path = os.path.join(cache, f"{start}.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return json.load(f)
         d = get(cfg["url"] + "/query", dict(
-            spatial, outFields=",".join(cfg["fields"]), outSR=4326, geometryPrecision=7,
-            orderByFields="OBJECTID", resultOffset=offset, resultRecordCount=PAGE, f="geojson"))
+            spatial, where=f"({cfg['where']}) AND OBJECTID >= {start} AND OBJECTID < {start + PAGE}",
+            outFields=",".join(cfg["fields"]), outSR=4326, geometryPrecision=7, f="geojson"))
+        if d.get("exceededTransferLimit") or d.get("properties", {}).get("exceededTransferLimit"):
+            raise RuntimeError(f"page {start} exceeded the transfer limit")
+        with open(path + ".tmp", "w") as f:
+            json.dump(d["features"], f)
+        os.replace(path + ".tmp", path)
         return d["features"]
 
     feats, t0 = [], time.time()
+    starts = range(lo, hi + 1, PAGE)
     with cf.ThreadPoolExecutor(args.workers) as ex:
-        for i, fs in enumerate(ex.map(page, range(0, n, PAGE))):
+        for i, fs in enumerate(ex.map(page, starts)):
             feats.extend(fs)
-            if i % 50 == 0:
-                print(f"  {len(feats):,}/{n:,}  {time.time() - t0:.0f}s")
+            if i % 100 == 0:
+                print(f"  page {i}/{len(starts)}: {len(feats):,}/{n:,}  {time.time() - t0:.0f}s", flush=True)
+    if len(feats) != n:
+        print(f"  warning: got {len(feats):,} features, server count was {n:,}")
 
     feats = [f for f in feats if f.get("geometry")]
     geoms = shapely.from_geojson([json.dumps(f["geometry"]) for f in feats])

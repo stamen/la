@@ -214,6 +214,25 @@
   protocol.add(new pmtiles.PMTiles(rasterSrc));
   protocol.add(new pmtiles.PMTiles(vectorSrc));
 
+  // Raster tiles are 512 px images, and each zoom level is a box-filtered half of the next.
+  // MapLibre uploads them with mipmaps but samples LINEAR_MIPMAP_NEAREST, which snaps to
+  // one mip level: where a tile is drawn shrunk past ~1.4x the GPU jumps to the half-size
+  // copy and the map visibly softens at a fixed zoom. Trilinear filtering blends the two
+  // levels instead, so sharpness changes continuously.
+  (function preferTrilinear() {
+    for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+      if (!C) continue;
+      const orig = C.prototype.texParameteri;
+      C.prototype.texParameteri = function (target, pname, param) {
+        if (pname === this.TEXTURE_MIN_FILTER && param === this.LINEAR_MIPMAP_NEAREST) param = this.LINEAR_MIPMAP_LINEAR;
+        return orig.call(this, target, pname, param);
+      };
+    }
+  })();
+  // Pick the tile slot size so tiles are always drawn between 1x and 2x shrunk on this
+  // screen (never enlarged below z14): MapLibre then hands off between levels exactly where
+  // the finer level's half-size copy equals the coarser level, so the switch is invisible.
+  const rasterTileSize = () => 512 / (window.devicePixelRatio * Math.SQRT2);
   const byClass = (colors) => ['match', ['get', 'c'], ...colors.flatMap((c, i) => [i, c]), colors[0]];
   const start = VIEWS[location.hash.slice(1)] || VIEWS.overview;
 
@@ -230,7 +249,7 @@
     style: {
       version: 8,
       sources: {
-        lowzoom: { type: 'raster', url: `pmtiles://${rasterSrc.getKey()}`, tileSize: 256 },
+        lowzoom: { type: 'raster', url: `pmtiles://${rasterSrc.getKey()}`, tileSize: rasterTileSize() },
         features: { type: 'vector', url: `pmtiles://${vectorSrc.getKey()}` },
       },
       // No background layer: the canvas stays transparent and the page color shows through the streets.
@@ -245,6 +264,23 @@
     },
   });
   map.touchZoomRotate.disableRotation();
+
+  // Rebuild the raster source if the window moves to a screen with a different density.
+  (function watchDensity() {
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mq.addEventListener('change', () => {
+      const size = rasterTileSize();
+      const src = map.getSource('lowzoom');
+      if (src && src.tileSize !== size) {
+        const layer = map.getStyle().layers.find((l) => l.id === 'lowzoom');
+        const spec = { ...map.getStyle().sources.lowzoom, tileSize: size };
+        const before = map.getStyle().layers[map.getStyle().layers.indexOf(layer) + 1]?.id;
+        map.removeLayer('lowzoom'); map.removeSource('lowzoom');
+        map.addSource('lowzoom', spec); map.addLayer(layer, before);
+      }
+      watchDensity();
+    }, { once: true });
+  })();
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
   map.addControl(new maplibregl.ScaleControl({ unit: 'imperial' }), 'bottom-right');
   window.__map = map;

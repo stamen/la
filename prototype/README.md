@@ -23,7 +23,7 @@ python fetch_arcgis.py buildings data/lariac_buildings.parquet      # ~30 min, r
 python prep.py data/parcels.parquet data/parcels.npz --layer parcels --area-field area_ft2
 python prep.py data/lariac_buildings.parquet data/buildings.npz --layer buildings --area-field area_ft2
 python experiment.py && python compare.py        # method comparison -> out/sheet_crops.png
-python build_raster_tiles.py data/la-raster.pmtiles                 # z9-14 @2x WebP, ~15 min on 4 cores
+python build_raster_tiles.py data/la-raster.pmtiles                 # z9-15, 512 px WebP, ~35 min on 4 cores
 python export_geojsonseq.py data/parcels.parquet --layer parcels --area-field area_ft2 > data/parcels.geojsonl
 python export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --area-field area_ft2 > data/buildings.geojsonl
 tippecanoe -o data/la-vector.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
@@ -77,7 +77,15 @@ Parcel breaks get 1% of slack: LA lots cluster at standard sizes (2-3% of parcel
 exactly 5,000, 6,000 or 7,500 sq ft), and without slack a break at 5,000 would split identical lots
 on one block between two grays.
 
-**Sizes for the study window.** Raster z9-14: 858 tiles, 83 MB. Vector z13-16: 267 MB.
+**Sizes for the study window.** Raster z9-15: 3,190 tiles, 188 MB (z9-14 alone: 858 tiles, 82 MB).
+Vector z13-16: 267 MB.
+
+**Raster display.** MapLibre samples raster textures `LINEAR_MIPMAP_NEAREST`, which snaps to a
+half-size mip level once a tile is drawn shrunk past ~1.4x, so the map softened abruptly at fixed
+zooms (z13.5 on a 1x screen). The viewers swap in trilinear filtering and size raster tile slots at
+`512 / (devicePixelRatio * sqrt 2)` so tiles are always drawn 1-2x shrunk; since each level is a
+box-filtered half of the next, the level hand-off is continuous. The z15 level keeps the raster from
+being enlarged on 2x screens before the z14.5 switch to vectors.
 
 - The 2008 class breaks still split today's ~2M buildings into seven nearly equal classes.
 - Rendering each zoom natively and rendering at z15 then averaging down look nearly identical for

@@ -11,7 +11,7 @@ parcels (1.46M) and 2020 LARIAC building outlines (2.02M) from LA County's ArcGI
 |---|---|
 | z11 (raster) | ![z11](docs/viewer_z11.webp) |
 | z12 (raster) | ![z12](docs/viewer_z12.webp) |
-| z14 (raster/vector crossfade starts) | ![z14](docs/viewer_z14.webp) |
+| z14 (raster; switches to vector at z14.5) | ![z14](docs/viewer_z14.webp) |
 | z15 (vector) | ![z15](docs/viewer_z15.webp) |
 
 ## Pipeline
@@ -29,8 +29,9 @@ python export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --ar
 tippecanoe -o data/la-vector.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
   --no-tiny-polygon-reduction --detect-shared-borders \
   -L parcels:data/parcels.geojsonl -L buildings:data/buildings.geojsonl
-# view: serve web/ with the two .pmtiles under web/tiles/ (any static host with Range support),
-# or screenshot offline: cd web && TILES_DIR=../data node screenshot.mjs out 14/34.0715/-118.336
+# view locally: node web/serve.mjs 8080   -> http://localhost:8080/#12/34.06/-118.3
+#   (serves web/ and /tiles/* from data/, with the Range requests PMTiles needs)
+# screenshots: cd web && node screenshot.mjs out 14/34.0715/-118.336
 ```
 
 ## Files

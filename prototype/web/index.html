@@ -56,9 +56,11 @@
     const GREYS = ['#252525', '#525252', '#737373', '#969696', '#BDBDBD', '#D9D9D9', '#F7F7F7'];
     const byClass = (colors) => ['match', ['get', 'c'], ...colors.flatMap((c, i) => [i, c]), colors[0]];
 
-    // Pre-rendered raster below FADE_START, vector above FADE_END.
-    const FADE_START = 14, FADE_END = 15;
-    const vectorOpacity = ['interpolate', ['linear'], ['zoom'], FADE_START, 0, FADE_END, 1];
+    // Pre-rendered (supersampled) raster below SWITCH_ZOOM, vector at and above it.
+    // A hard switch, not a crossfade: semi-transparent fills let the background
+    // color wash through the whole map mid-fade. The z14 raster tiles are @2x,
+    // so they stay crisp up to the switch.
+    const SWITCH_ZOOM = 14.5;
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -77,19 +79,18 @@
         // No background layer: the canvas stays transparent and the page color shows through.
         layers: [
           {
-            id: 'lowzoom', type: 'raster', source: 'lowzoom', maxzoom: FADE_END,
+            id: 'lowzoom', type: 'raster', source: 'lowzoom', maxzoom: SWITCH_ZOOM,
             paint: {
-              'raster-opacity': ['interpolate', ['linear'], ['zoom'], FADE_START, 1, FADE_END, 0],
               'raster-resampling': 'linear', 'raster-fade-duration': 0,
             },
           },
           {
-            id: 'parcels', type: 'fill', source: 'features', 'source-layer': 'parcels', minzoom: FADE_START,
-            paint: { 'fill-color': byClass([...GREYS].reverse()), 'fill-opacity': vectorOpacity },
+            id: 'parcels', type: 'fill', source: 'features', 'source-layer': 'parcels', minzoom: SWITCH_ZOOM,
+            paint: { 'fill-color': byClass([...GREYS].reverse()) },
           },
           {
-            id: 'buildings', type: 'fill', source: 'features', 'source-layer': 'buildings', minzoom: FADE_START,
-            paint: { 'fill-color': byClass(GREYS), 'fill-opacity': vectorOpacity },
+            id: 'buildings', type: 'fill', source: 'features', 'source-layer': 'buildings', minzoom: SWITCH_ZOOM,
+            paint: { 'fill-color': byClass(GREYS) },
           },
         ],
       },

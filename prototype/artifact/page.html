@@ -111,7 +111,7 @@
   </div>
 </details>
 
-<div class="panel" id="status" aria-live="polite"><b id="zoom">Loading</b><span class="mode" id="mode">tiles, 19.6 MB</span></div>
+<div class="panel" id="status" aria-live="polite"><b id="zoom">Loading</b><span class="mode" id="mode">tiles</span></div>
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js"></script>
@@ -166,30 +166,40 @@
   const startBg = BACKGROUNDS.find(([n]) => n === savedBg) || BACKGROUNDS[0];
   setBg(startBg[0], startBg[1]);
 
-  // Each PMTiles archive is published base64-encoded as .txt (artifacts serve only web
-  // file types). Fetch it whole, decode it, and serve pmtiles' byte-range reads from memory.
-  const progress = { loaded: 0, total: 19.6e6 };
-  class WholeFileSource {
-    constructor(url) { this.url = url; this.buffer = this.load(url); }
-    async load(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-      let text;
-      if (res.body) {
-        const reader = res.body.getReader(), decoder = new TextDecoder(), parts = [];
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          parts.push(decoder.decode(value, { stream: true }));
-          progress.loaded += value.length; showProgress();
-        }
-        text = parts.join('') + decoder.decode();
-      } else {
-        text = await res.text();
+  // Each PMTiles archive is published base64-encoded as one or more .txt parts (artifacts
+  // serve only web file types, at most 15 MB each). build.py fills in TILE_PARTS. Fetch the
+  // parts, decode each, join them in order, and serve pmtiles' byte-range reads from memory.
+  const TILE_PARTS = /*TILE_PARTS*/{ raster: ['tiles/raster.pmtiles.b64.txt'], vector: ['tiles/vector.pmtiles.b64.txt'] };
+  const TILE_BYTES = /*TILE_BYTES*/0;
+  const progress = { loaded: 0, total: TILE_BYTES };
+  async function fetchBase64(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+    let text;
+    if (res.body) {
+      const reader = res.body.getReader(), decoder = new TextDecoder(), parts = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(decoder.decode(value, { stream: true }));
+        progress.loaded += value.length; showProgress();
       }
-      const bin = atob(text.trim());
-      const out = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      text = parts.join('') + decoder.decode();
+    } else {
+      text = await res.text();
+    }
+    const bin = atob(text.trim());
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  class WholeFileSource {
+    constructor(urls) { this.url = urls[0]; this.buffer = this.load(urls); }
+    async load(urls) {
+      const parts = await Promise.all(urls.map(fetchBase64));
+      const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+      let o = 0;
+      for (const p of parts) { out.set(p, o); o += p.length; }
       return out.buffer;
     }
     getKey() { return this.url; }
@@ -204,13 +214,13 @@
   function showProgress() {
     if (!loading) return;
     zoomEl.textContent = 'Loading';
-    modeEl.textContent = `tiles, ${(progress.loaded / 1e6).toFixed(1)} of ${(progress.total / 1e6).toFixed(1)} MB`;
+    modeEl.textContent = progress.total ? `tiles, ${(progress.loaded / 1e6).toFixed(1)} of ${(progress.total / 1e6).toFixed(1)} MB` : 'tiles';
   }
 
   const protocol = new pmtiles.Protocol();
   maplibregl.addProtocol('pmtiles', protocol.tile);
-  const rasterSrc = new WholeFileSource('tiles/raster.pmtiles.b64.txt');
-  const vectorSrc = new WholeFileSource('tiles/vector.pmtiles.b64.txt');
+  const rasterSrc = new WholeFileSource(TILE_PARTS.raster);
+  const vectorSrc = new WholeFileSource(TILE_PARTS.vector);
   protocol.add(new pmtiles.PMTiles(rasterSrc));
   protocol.add(new pmtiles.PMTiles(vectorSrc));
 

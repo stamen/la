@@ -81,7 +81,10 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--layers", nargs="+", default=["parcels", "buildings"], help="draw order")
     ap.add_argument("--minzoom", type=int, default=9)
-    ap.add_argument("--maxzoom", type=int, default=14)
+    ap.add_argument("--maxzoom", type=int, default=15)
+    ap.add_argument("--render-zooms", type=int, nargs="+",
+                    help="render only these zooms; copy the rest from --keep")
+    ap.add_argument("--keep", help="existing raster .pmtiles to copy non-rendered zooms from")
     ap.add_argument("--supersample", type=int, default=8, help="samples per output pixel, per axis")
     ap.add_argument("--chunk-px", type=int, default=4096, help="max rendered chunk width in pixels")
     ap.add_argument("--workers", type=int, default=mp.cpu_count())
@@ -93,8 +96,16 @@ def main():
     w, s, e, n = lonlat_window()
     tiles = {}
     px = 256 * SCALE
+    render_zooms = set(args.render_zooms or range(args.minzoom, args.maxzoom + 1))
+    if args.keep:
+        from pmtiles.reader import MmapSource, all_tiles
+        with open(args.keep, "rb") as f:
+            for (z, x, y), data in all_tiles(MmapSource(f)):
+                if args.minzoom <= z <= args.maxzoom and z not in render_zooms:
+                    tiles[zxy_to_tileid(z, x, y)] = data
+        print(f"kept {len(tiles)} tiles from {args.keep}", flush=True)
     with mp.get_context("fork").Pool(args.workers) as pool:
-        for z in range(args.minzoom, args.maxzoom + 1):
+        for z in sorted(render_zooms):
             t0 = time.time()
             tx0, ty0 = lonlat_to_tile(w, n, z)
             tx1, ty1 = lonlat_to_tile(e, s, z)

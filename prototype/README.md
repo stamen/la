@@ -40,7 +40,8 @@ tippecanoe -o data/la-vector.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit 
 - `fetch_overture_buildings.py` - Overture buildings (earlier stand-in, not used now)
 - `web/index.html` - the MapLibre viewer; `web/screenshot.mjs` - Playwright screenshots
 - `area.py` - study area (1024x640 px at z11 around Koreatown) and Web Mercator helpers
-- `palette.py` - original 7-class Greys palette and `shape_area` breaks from the 2016 `index.html`
+- `palette.py` - the 2016 7-class Greys palette, the round-number class breaks, and the 2016 breaks for reference
+- `compare_breaks.py` - renders candidate class breaks side by side and prints class shares
 - `render.py` - Skia renderer: each polygon drawn separately with coverage anti-aliasing, transparent background
 - `experiment.py`, `compare.py` - method comparison
 - `build_raster_tiles.py` - low-zoom raster PMTiles
@@ -60,9 +61,21 @@ Earlier buildings-only comparison (Overture data):
 
 ![buildings comparison](docs/comparison_buildings_only.png)
 
-**Data.** 2025 parcels and 2020 buildings still split almost evenly across the seven 2016
-quantile classes, so the original breaks are kept unchanged. `Shape__Area` (parcels) and `AREA`
-(buildings) are square feet, within 0.25% of areas computed from the geometry.
+**Data.** `Shape__Area` (parcels) and `AREA` (buildings) are square feet, within 0.25% of areas
+computed from the geometry. 2025 parcels and 2020 buildings still split almost evenly across the
+2016 quantile breaks.
+
+**Class breaks.** Replaced the 2016 quantiles with round numbers that read cleanly in a legend
+(inclusive upper bounds, sq ft); see `docs/class_breaks_options.png`.
+
+| | breaks | share per class, small to large |
+|---|---|---|
+| buildings | 400 · 800 · 1,400 · 1,800 · 2,400 · 3,000 | 12 · 18 · 16 · 12 · 17 · 11 · 15 % |
+| parcels | 5,000 · 6,000 · 7,000 · 8,000 · 10,000 · 20,000 | 14 · 18 · 17 · 12 · 9 · 14 · 17 % |
+
+Parcel breaks get 1% of slack: LA lots cluster at standard sizes (2-3% of parcels within 0.5% of
+exactly 5,000, 6,000 or 7,500 sq ft), and without slack a break at 5,000 would split identical lots
+on one block between two grays.
 
 **Sizes for the study window.** Raster z9-14: 858 tiles, 83 MB. Vector z13-16: 267 MB.
 

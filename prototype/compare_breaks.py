@@ -5,7 +5,7 @@ Usage (from prototype/): python compare_breaks.py docs/class_breaks_options.png
 import sys, numpy as np
 sys.path.insert(0, ".")  # run from prototype/
 from PIL import Image, ImageDraw, ImageFont
-from palette import BREAKS
+from palette import BREAKS_2016 as BREAKS  # the 2016 quantiles, for the "Original" column
 from render import Layer, render, downsample, composite
 from area import lonlat_to_merc, meters_per_pixel
 

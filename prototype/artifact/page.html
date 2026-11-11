@@ -123,7 +123,6 @@
     parcels: [5000, 6000, 7000, 8000, 10000, 20000],
   };
   const SWITCH_ZOOM = 14.5;  // raster below, vector at and above
-  const BOUNDS = [[-118.373, 34.0425], [-118.297, 34.0875]];
 
   const VIEWS = {
     'overview': { label: 'Overview', center: [-118.335, 34.065], zoom: 13.4 },
@@ -250,9 +249,8 @@
     container: 'map',
     center: start.center,
     zoom: start.zoom,
-    minZoom: 12.5,
+    minZoom: 0,  // zoom all the way out to see how the texture blends; tiles exist only around the excerpt
     maxZoom: 18,
-    maxBounds: [[BOUNDS[0][0] - 0.03, BOUNDS[0][1] - 0.02], [BOUNDS[1][0] + 0.03, BOUNDS[1][1] + 0.02]],
     dragRotate: false,
     pitchWithRotate: false,
     attributionControl: { compact: true, customAttribution: 'Map by Stamen Design · Data: County of Los Angeles' },

@@ -31,7 +31,7 @@ def main():
     for old in os.listdir(tiles_dir):
         os.remove(os.path.join(tiles_dir, old))
     parts, total = {}, 0
-    for name, extra in (("raster", ["--minzoom", "11"]), ("vector", [])):
+    for name, extra in (("raster", []), ("vector", [])):
         tmp = os.path.join(tiles_dir, f"{name}.pmtiles")
         subprocess.run([sys.executable, os.path.join(HERE, "..", "subset_pmtiles.py"),
                         f"data/la-{name}.pmtiles", tmp, f"--bbox={BBOX}", *extra], check=True)

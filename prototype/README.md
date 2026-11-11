@@ -24,6 +24,7 @@ python prep.py data/parcels.parquet data/parcels.npz --layer parcels --area-fiel
 python prep.py data/lariac_buildings.parquet data/buildings.npz --layer buildings --area-field area_ft2
 python experiment.py && python compare.py        # method comparison -> out/sheet_crops.png
 python build_raster_tiles.py data/la-raster.pmtiles                 # z9-15, 512 px WebP, ~35 min on 4 cores
+python build_overviews.py data/la-raster.pmtiles data/la-raster-ov.pmtiles --from-zoom 11 && mv data/la-raster-ov.pmtiles data/la-raster.pmtiles  # z0-10 by averaging down
 python export_geojsonseq.py data/parcels.parquet --layer parcels --area-field area_ft2 > data/parcels.geojsonl
 python export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --area-field area_ft2 > data/buildings.geojsonl
 tippecanoe -o data/la-vector.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
@@ -77,7 +78,9 @@ Parcel breaks get 1% of slack: LA lots cluster at standard sizes (2-3% of parcel
 exactly 5,000, 6,000 or 7,500 sq ft), and without slack a break at 5,000 would split identical lots
 on one block between two grays.
 
-**Sizes for the study window.** Raster z9-15: 3,190 tiles, 188 MB (z9-14 alone: 858 tiles, 82 MB).
+**Sizes for the study window.** Raster z0-15: 3,202 tiles, 189 MB (z0-14 alone: ~870 tiles, 82 MB).
+z0-10 are box averages of z11 (`build_overviews.py`): rendered directly, z9-10's 8x8 samples per
+pixel land 10-20 m apart, coarser than a house; averaging down keeps the coverage exact.
 Vector z13-16: 267 MB.
 
 **Raster display.** MapLibre samples raster textures `LINEAR_MIPMAP_NEAREST`, which snaps to a

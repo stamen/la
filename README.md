@@ -36,6 +36,10 @@ node prototype/web/serve.mjs 8080      # serves index.html and /tiles/* from pro
 open http://localhost:8080/#11/34.06/-118.3
 ```
 
+The social card (`social.jpg`, referenced by the Open Graph tags in `index.html`) is rendered from
+the map: `node prototype/web/social-card.mjs` (uses the live site; pass `http://localhost:8080/` to
+render from a local checkout).
+
 ## Hosting the tiles on AWS (S3 + CloudFront)
 
 The page loads `la-raster.pmtiles` (~320 MB) and `la-vector-v2.pmtiles` (~715 MB) with HTTP range requests.

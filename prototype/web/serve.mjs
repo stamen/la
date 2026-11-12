@@ -1,6 +1,6 @@
 // Minimal static server with HTTP Range support (PMTiles needs it).
 //
-//   node serve.mjs [port]        serves this folder, and /tiles/* from ../data
+//   node serve.mjs [port]        serves the repo root (the site), and /tiles/* from prototype/data
 //
 // Env: TILES_DIR overrides where the .pmtiles files are read from.
 import http from 'node:http';
@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const tilesDir = path.resolve(process.env.TILES_DIR || path.join(here, '..', 'data'));
+const here = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');  // repo root: the site's index.html
+const tilesDir = path.resolve(process.env.TILES_DIR || path.join(here, 'prototype', 'data'));
 const port = +(process.argv[2] || 8080);
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css' };
 

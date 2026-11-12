@@ -27,7 +27,7 @@ from PIL import Image
 from pmtiles.tile import Compression, TileType, zxy_to_tileid
 from pmtiles.writer import Writer
 
-from area import ORIGIN, lonlat_window
+from area import ORIGIN, lonlat_window, merc_to_lonlat
 from render import Layer, downsample, render
 
 SCALE = 2  # pixels per CSS pixel
@@ -63,6 +63,11 @@ def render_chunk(job):
     z, cx, cy, nx, ny = job
     px = 256 * SCALE
     mx, my, size = tile_origin(cx, cy, z)
+    # Skip chunks with no polygons (ocean, neighboring counties) without allocating a canvas.
+    x1, y0 = mx + nx * size, my - ny * size
+    if not any(((L.bbox[:, 0] <= x1) & (L.bbox[:, 2] >= mx) & (L.bbox[:, 1] <= my) & (L.bbox[:, 3] >= y0)).any()
+               for L in LAYERS):
+        return {}
     big = render(LAYERS, z, mx, my, nx * px * SS, ny * px * SS,
                  antialias=False, scale_mpp=size / (px * SS))
     img = downsample(big, SS)
@@ -85,6 +90,8 @@ def main():
     ap.add_argument("--render-zooms", type=int, nargs="+",
                     help="render only these zooms; copy the rest from --keep")
     ap.add_argument("--keep", help="existing raster .pmtiles to copy non-rendered zooms from")
+    ap.add_argument("--bbox", default="study",
+                    help="W,S,E,N to render; 'study' = the prototype window, 'data' = extent of the data")
     ap.add_argument("--supersample", type=int, default=8, help="samples per output pixel, per axis")
     ap.add_argument("--chunk-px", type=int, default=4096, help="max rendered chunk width in pixels")
     ap.add_argument("--workers", type=int, default=mp.cpu_count())
@@ -93,7 +100,15 @@ def main():
     global LAYERS, SS
     LAYERS = [Layer(n, f"data/{n}.npz") for n in args.layers]  # inherited by forked workers
     SS = args.supersample
-    w, s, e, n = lonlat_window()
+    if args.bbox == "study":
+        w, s, e, n = lonlat_window()
+    elif args.bbox == "data":
+        bx = np.vstack([L.bbox for L in LAYERS])
+        w, n = merc_to_lonlat(bx[:, 0].min(), bx[:, 3].max())
+        e, s = merc_to_lonlat(bx[:, 2].max(), bx[:, 1].min())
+    else:
+        w, s, e, n = (float(v) for v in args.bbox.split(","))
+    print(f"bbox {w:.4f},{s:.4f},{e:.4f},{n:.4f}", flush=True)
     tiles = {}
     px = 256 * SCALE
     render_zooms = set(args.render_zooms or range(args.minzoom, args.maxzoom + 1))
@@ -128,8 +143,8 @@ def main():
                 "max_zoom": args.maxzoom,
                 "min_lon_e7": int(w * 1e7), "min_lat_e7": int(s * 1e7),
                 "max_lon_e7": int(e * 1e7), "max_lat_e7": int(n * 1e7),
-                "center_zoom": 12,
-                "center_lon_e7": int(-118.30 * 1e7), "center_lat_e7": int(34.06 * 1e7),
+                "center_zoom": 10,
+                "center_lon_e7": int((w + e) / 2 * 1e7), "center_lat_e7": int((s + n) / 2 * 1e7),
             },
             {"name": "la-stamen low-zoom raster", "attribution": "Stamen Design; parcels and buildings: County of Los Angeles (Assessor, LARIAC)"},
         )

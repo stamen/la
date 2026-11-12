@@ -6,11 +6,12 @@
   buildings - LARIAC6 building outlines (2020), CODE = 'Building' (the original
               site filtered the 2008 LARIAC outlines the same way). AREA is sq ft.
 
-Pages through the bbox with resultOffset and writes WKB geometry plus an
+Pages through the layer by OBJECTID range (optionally limited to a bbox) and writes WKB geometry plus an
 `area_ft2` column to Parquet, ready for prep.py / export_geojsonseq.py.
 
 Usage:
-    python fetch_arcgis.py parcels data/parcels.parquet [--bbox W,S,E,N]
+    python fetch_arcgis.py parcels data/parcels.parquet [--bbox W,S,E,N | --bbox all]
+`--bbox all` fetches the whole layer (all of LA County, islands included).
 """
 import argparse
 import concurrent.futures as cf
@@ -62,20 +63,21 @@ def main():
     args = ap.parse_args()
     cfg = LAYERS[args.layer]
 
-    spatial = dict(geometry=args.bbox, geometryType="esriGeometryEnvelope", inSR=4326,
-                   spatialRel="esriSpatialRelIntersects")
+    spatial = {} if args.bbox == "all" else dict(
+        geometry=args.bbox, geometryType="esriGeometryEnvelope", inSR=4326, spatialRel="esriSpatialRelIntersects")
     n = get(cfg["url"] + "/query", dict(spatial, where=cfg["where"], returnCountOnly="true", f="json"))["count"]
     stats = get(cfg["url"] + "/query", dict(where="1=1", f="json", outStatistics=json.dumps([
         {"statisticType": "min", "onStatisticField": "OBJECTID", "outStatisticFieldName": "lo"},
         {"statisticType": "max", "onStatisticField": "OBJECTID", "outStatisticFieldName": "hi"}])))
     lo, hi = (stats["features"][0]["attributes"][k] for k in ("lo", "hi"))
-    print(f"{args.layer}: {n:,} features in bbox; OBJECTID {lo}..{hi}")
+    print(f"{args.layer}: {n:,} features{'' if args.bbox == 'all' else ' in bbox'}; OBJECTID {lo}..{hi}")
 
     # Page by fixed OBJECTID ranges rather than resultOffset: deep offsets get
     # slower and start failing on hosted feature services, while a range of
     # PAGE ids can never exceed the PAGE-record limit. Pages are cached so an
     # interrupted download resumes where it stopped.
-    cache = os.path.join(os.path.dirname(os.path.abspath(args.out)), f"cache_{args.layer}")
+    tag = "all" if args.bbox == "all" else "bbox_" + args.bbox.replace(",", "_")
+    cache = os.path.join(os.path.dirname(os.path.abspath(args.out)), f"cache_{args.layer}_{tag}")
     os.makedirs(cache, exist_ok=True)
 
     def page(start):

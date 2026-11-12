@@ -1,497 +1,379 @@
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <script src="https://d3js.org/d3.v4.min.js"></script>
-  <link rel="stylesheet" href="https://cartodb-libs.global.ssl.fastly.net/cartodb.js/v3/3.15/themes/css/cartodb.css">
-  <script src="https://cartodb-libs.global.ssl.fastly.net/cartodb.js/v3/3.15/cartodb.js"></script>
-  <script src="vendor/leaflet-hash.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-geocoder-mapzen/1.4.1/leaflet-geocoder-mapzen.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-geocoder-mapzen/1.4.1/leaflet-geocoder-mapzen.js"></script>
-  <!--[if lte IE 8]>
-    <link rel="stylesheet" href="https://libs.cartocdn.com/cartodb.js/v2/themes/css/cartodb.ie.css" />
-  <![endif]-->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Los Angeles buildings and parcels</title>
+  <meta name="description" content="Every parcel and building in Los Angeles County, shaded by area. A Stamen Design map.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
   <style>
-    html, body {width:100%; height:100%; padding: 0; margin: 0; background: turquoise;}
-    #cartodb-map { width: 100%; height:100%; background: transparent;}
-    #label-control {
-      font-family: 'Helvetica Neue', Helvetica, sans-serif;
-      font-weight: 400;
-      font-size: 14px;
-      line-height: normal;
-      display: block;
+    /* The map is the page; dark translucent panels float over it like the 2016 CARTO overlays.
+       The map's background color is the viewer's choice (?background=, as in 2016). */
+    :root {
+      --map-bg: #40e0d0;
+      --panel: rgba(12, 14, 14, 0.82);
+      --panel-line: rgba(255, 255, 255, 0.14);
+      --ink: #f3f4f2;
+      --ink-dim: #a9b0ae;
+      --focus: #40e0d0;
+      --font-display: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+      color-scheme: dark;
     }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--map-bg); color: var(--ink); font-family: var(--font-display); overflow: hidden; }
+    #map { position: fixed; inset: 0; background: transparent; }
+
+    .panel {
+      position: absolute; z-index: 2; background: var(--panel); color: var(--ink);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      border: 1px solid var(--panel-line); border-radius: 4px;
+    }
+    #info {
+      top: calc(12px + env(safe-area-inset-top, 0px));
+      left: max(12px, env(safe-area-inset-left, 0px));
+      width: min(340px, calc(100vw - 72px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+      max-height: calc(100% - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+      overflow-y: auto;
+    }
+    #info > summary {
+      list-style: none; cursor: pointer; padding: 12px 14px; display: flex; gap: 10px; align-items: baseline; justify-content: space-between;
+    }
+    #info > summary::-webkit-details-marker { display: none; }
+    :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 700; line-height: 1.2; text-wrap: balance; }
+    .toggle { font: 500 0.7rem var(--font-data); color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+    #info[open] .toggle .closed, #info:not([open]) .toggle .open { display: none; }
+    .body { display: grid; gap: 16px; padding: 0 14px 14px; }
+    .lede { margin: 0; font-size: 0.86rem; line-height: 1.45; }
+    .eyebrow { font: 500 0.66rem var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); margin: 0 0 6px; }
+
+    .search { position: relative; }
+    .search input {
+      box-sizing: border-box; width: 100%; font: 400 0.85rem var(--font-display); color: var(--ink);
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--panel-line); border-radius: 3px; padding: 7px 9px;
+    }
+    .search input::placeholder { color: var(--ink-dim); }
+    .results { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+    .results button {
+      width: 100%; text-align: left; font: 400 0.8rem var(--font-display); color: var(--ink); cursor: pointer;
+      background: transparent; border: 0; border-radius: 3px; padding: 5px 7px;
+    }
+    .results button:hover, .results button:focus-visible { background: rgba(255, 255, 255, 0.08); }
+    .results small { color: var(--ink-dim); margin-left: 6px; }
+    .search-note { font: 400 0.7rem var(--font-data); color: var(--ink-dim); margin: 4px 0 0; min-height: 1em; }
+
+    .ramp { display: grid; gap: 4px; }
+    .ramp-head { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; }
+    .ramp-head span { font: 400 0.7rem var(--font-data); color: var(--ink-dim); }
+    .bar { display: grid; grid-template-columns: repeat(7, 1fr); height: 14px; border: 1px solid var(--panel-line); }
+    .ticks { position: relative; height: 14px; font: 400 0.62rem var(--font-data); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+    .ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font: 500 0.72rem var(--font-data); color: var(--ink); background: transparent; cursor: pointer;
+      border: 1px solid var(--panel-line); border-radius: 3px; padding: 5px 8px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip:hover { border-color: var(--ink-dim); }
+    .chip[aria-pressed="true"] { border-color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); }
+    .layer-note { font: 400 0.68rem var(--font-data); color: var(--ink-dim); margin: 6px 0 0; }
+
+    .source { margin: 0; font-size: 0.72rem; line-height: 1.45; color: var(--ink-dim); }
+    .source a { color: var(--ink); }
+
+    #status {
+      left: max(12px, env(safe-area-inset-left, 0px));
+      bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+      padding: 6px 10px; font: 400 0.72rem var(--font-data); font-variant-numeric: tabular-nums; display: flex; gap: 10px; align-items: center;
+    }
+    #status b { font-weight: 500; }
+    .mode { color: var(--ink-dim); }
+    .maplibregl-ctrl-bottom-right { padding-right: env(safe-area-inset-right, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .maplibregl-ctrl-top-right { padding-right: env(safe-area-inset-right, 0px); padding-top: env(safe-area-inset-top, 0px); }
   </style>
-  <script>
-    var map;
-    function init(){
-
-      var showLabels = false;
-      var showBuildings = true;
-      var showParcels = true;
-
-      // Parse query parameters:
-      var search_values = location.search.replace('\?','').split('&');
-      search_values.forEach(function(param) {
-        key_value = param.split("=");
-        if (key_value.length == 2) { // skip if it doesn't parse well
-          if (key_value[0] == "labels" && key_value[1] == "true") {
-            showLabels = true;
-          }
-          if (key_value[0] == "background" && key_value[1].match(/^\w+$/)) { // make sure no weird characters
-            if (d3.color(key_value[1])) { // see if d3 parses it as a CSS color
-              d3.select("body").style("background-color", key_value[1]);
-            }
-            if (d3.color('#' + key_value[1])) { // see if d3 parses it as a hex value
-              d3.select("body").style("background-color", '#' + key_value[1]);
-            }
-          }
-        }
-      });
-
-      // initiate leaflet map
-      map = new L.Map('cartodb-map', { 
-        center: [34.0522,-118.2437],
-        zoom: 14
-      })
-
-      var parcels_style = [
-        "#lacounty_parcels{",
-        "  polygon-fill: #F7F7F7;",
-        "  polygon-opacity: 1;",
-        "  line-color: #FFF;",
-        "  line-width: 0;",
-        "  line-opacity: 1;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 183259633.853] {",
-        "   polygon-fill: #252525;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 18749.2191] {",
-        "   polygon-fill: #525252;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 9615.76605] {",
-        "   polygon-fill: #737373;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 7550.60995] {",
-        "   polygon-fill: #969696;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 6661.9965] {",
-        "   polygon-fill: #BDBDBD;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 5924.23825] {",
-        "   polygon-fill: #D9D9D9;",
-        "}",
-        "#lacounty_parcels [ shape_area <= 5043.57735] {",
-        "   polygon-fill: #F7F7F7;",
-        "}"
-      ].join('\n');
-
-      var buildings_style = [
-        "#lariac_buildings_2008{",
-        "  polygon-fill: #252525;",
-        "  polygon-opacity: 1;",
-        "  line-color: #FFF;",
-        "  line-width: 0;",
-        "  line-opacity: 1;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 1507358.01989] {",
-        "   polygon-fill: #F7F7F7;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 3074.36767757] {",
-        "   polygon-fill: #D9D9D9;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 2379.88198146] {",
-        "   polygon-fill: #BDBDBD;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 1904.96072563] {",
-        "   polygon-fill: #969696;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 1424.7760669] {",
-        "   polygon-fill: #737373;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 830.578055424] {",
-        "   polygon-fill: #525252;",
-        "}",
-        "#lariac_buildings_2008 [ shape_area <= 437.62214556] {",
-        "   polygon-fill: #252525;",
-        "}"
-      ].join('\n');
-
-      var parcels_style_1 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #252525;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-      var parcels_style_2 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #525252;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-      var parcels_style_3 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #737373;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-      var parcels_style_4 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #969696;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-      var parcels_style_5 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #BDBDBD;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-      var parcels_style_6 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #D9D9D9;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-      var parcels_style_7 = [
-        "#lacounty_parcels{",
-        "   polygon-fill: #F7F7F7;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_1 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #252525;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_2 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #525252;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_3 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #737373;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_4 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #969696;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_5 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #BDBDBD;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_6 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #D9D9D9;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var buildings_style_7 = [
-        "#lariac_buildings_2008{",
-        "   polygon-fill: #F7F7F7;",
-        "   polygon-opacity: 1;\nline-color: #FFF;\nline-width: 0;\nline-opacity: 1;",
-        "}"
-      ].join('\n');
-
-      var mapLayers = {};
-
-      // Add parcels layer
-      cartodb.createLayer(map, {
-        user_name: 'stamen-org',
-        type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels",
-          cartocss: parcels_style
-        }]
-      }, {
-        cartodb_logo:false,
-      }).addTo(map).done(function(layer) { mapLayers['parcels'] = layer; layer.setZIndex(2); })
-
-/*
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 18749.219",
-          cartocss: parcels_style_1
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 9615.766 AND shape_area <= 18749.219",
-          cartocss: parcels_style_2
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 7550.610 AND shape_area <= 9615.766",
-          cartocss: parcels_style_3
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 6661.997 AND shape_area <= 7550.610",
-          cartocss: parcels_style_4
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 5924.238 AND shape_area <= 6661.997",
-          cartocss: parcels_style_5
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area > 5043.577 AND shape_area <= 5924.238",
-          cartocss: parcels_style_6
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lacounty_parcels WHERE shape_area <= 5043.577",
-          cartocss: parcels_style_7
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(1); })
-
-
-
-
-
-
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area <= 437.622",
-          cartocss: buildings_style_1
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 437.622 AND shape_area <= 830.578",
-          cartocss: buildings_style_2
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 830.578 AND shape_area <= 1424.776",
-          cartocss: buildings_style_3
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 1424.776 AND shape_area <= 1904.961",
-          cartocss: buildings_style_4
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 1904.961 AND shape_area <= 2379.882",
-          cartocss: buildings_style_5
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 2379.882 AND shape_area <= 3074.368",
-          cartocss: buildings_style_6
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-      cartodb.createLayer(map, { user_name: 'stamen-org', type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building' AND shape_area > 3074.368",
-          cartocss: buildings_style_7
-        }]
-      }, { cartodb_logo:false, }).addTo(map).done(function(layer) { layer.setZIndex(2); })
-
-*/
-      // Add buildings layer
-      cartodb.createLayer(map, {
-        user_name: 'stamen-org',
-        type: 'cartodb',
-        sublayers: [{
-          sql: "SELECT * FROM lariac_buildings_2008 WHERE code = 'Building'",
-          cartocss: buildings_style
-        }]
-      }, {
-        cartodb_logo:false,
-      }).addTo(map).done(function(layer) { mapLayers['buildings'] = layer; layer.setZIndex(3); })
-
-
-      // then finally add the full thing to get the correct blending effects
-      var layerUrl = 'https://stamen.carto.com/u/stamen-org/api/v2/viz/ea17c2c0-961c-11e4-97a4-f23c91504230/viz.json';
-
-      cartodb.createLayer(map, layerUrl, {
-         cartodb_logo:false,
-         legends:false,
-      }).addTo(map).done(function(layer) { mapLayers['everything'] = layer; layer.setZIndex(4); })
-
-
-      var labelLayer = L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}.png', {id: 'labelLayer', zIndex: 100});
-
-      if (showLabels) // off by default
-        labelLayer.addTo(map);
-
-      // scale bar
-      L.control.scale().addTo(map);
-
-      // Add URL hash for zoom/lat/lon
-      var hash = new L.Hash(map);
-
-      map.attributionControl.setPrefix('Map by <a href="https://stamen.com">Stamen Design</a> (<a href="https://stamen.com/using-open-data-to-learn-about-los-angeles-5b30192a68b0/">about</a>)');
-
-      // Mapzen geocoder
-      L.control.geocoder('search-hNyVAbJ').addTo(map);
-
-      d3.select("#label-control")
-        .append("div")
-        .append("label")
-          .text("show map labels")
-        .append("input")
-          .property("checked", showLabels)
-          .attr("type", "checkbox")
-          .on("change", function(evt) {
-            if (this.checked) {
-              map.addLayer(labelLayer);
-              var location_string = location.href;
-              if (location_string.match("labels=false")) {
-                history.pushState({},null,location_string.replace("labels=false","labels=true"));
-              } else {
-                // if it's not in the URL
-                // then there might not be a '?' either:
-                if (location_string.match("\\?")) // means there's already a search query
-                  history.pushState({},null,location_string.replace("#","&labels=true#"));
-                else
-                  history.pushState({},null,location_string.replace("#","?labels=true#"));
-              }
-            } else {
-              map.removeLayer(labelLayer);
-              var location_string = location.href;
-              if (location_string.match("labels=true")) {
-                history.pushState({},null,location_string.replace("labels=true","labels=false"));
-              } else {
-                // if it's not in the URL
-                // then there might not be a '?' either:
-                if (location_string.match("\\?")) // means there's already a search query
-                  history.pushState({},null,location_string.replace("#","&labels=false#"));
-                else
-                  history.pushState({},null,location_string.replace("#","?labels=false#"));
-              }
-            }
-
-            // update the URL location
-            //var location_string = location;
-          });
-
-      d3.select("#label-control")
-        .append("div")
-        .append("label")
-          .text("show buildings")
-        .append("input")
-          .property("checked", showBuildings)
-          .attr("type", "checkbox")
-          .on("change", function(evt) {
-            if (this.checked) {
-              map.addLayer(mapLayers['buildings']);
-              if (showParcels)
-                map.addLayer(mapLayers['everything']);
-            } else {
-              map.removeLayer(mapLayers['buildings']);
-              if (showParcels)
-                map.removeLayer(mapLayers['everything']);
-            }
-          });
-
-      d3.select("#label-control")
-        .append("div")
-        .append("label")
-          .text("show parcels")
-        .append("input")
-          .property("checked", showParcels)
-          .attr("type", "checkbox")
-          .on("change", function(evt) {
-            if (this.checked) {
-              map.addLayer(mapLayers['parcels']);
-              if (showBuildings)
-                map.addLayer(mapLayers['everything']);
-            } else {
-              map.removeLayer(mapLayers['parcels']);
-              if (showBuildings)
-                map.removeLayer(mapLayers['everything']);
-            }
-          });
-
-    }
-  </script>
 </head>
-<body onload="init()">
+<body>
+  <div id="map" role="region" aria-label="Map of Los Angeles County parcels and buildings"></div>
 
-  <!-- copied from the default CARTO overlays -->
+  <details class="panel" id="info" open>
+    <summary>
+      <h1>Los Angeles buildings and parcels</h1>
+      <span class="toggle"><span class="open">Hide</span><span class="closed">More</span></span>
+    </summary>
+    <div class="body">
+      <p class="lede">Every lot and building in Los Angeles County, shaded by its area. Small buildings are dark and large ones light; parcels run the other way, so small lots are light and large lots dark. The streets are simply the space between parcels.</p>
 
-  <div class="cartodb-overlay overlay-text desktop" style="z-index: 4; max-width: 500px; margin-left: 0px; margin-top: 0px; top: 55px; left: 66px; right: auto; bottom: auto; display: block; background-color: rgba(0, 0, 0, 0.701961);">
-    <div class="content">
-      <div class="text widget_text" style="z-index: 4; color: rgb(255, 255, 255); text-align: left; font-size: 20px;"><strong>
-        Los Angeles buildings and parcels
-      </strong></div>
-    </div>
-  </div>
-  <div class="cartodb-overlay overlay-text desktop" style="z-index: 4; max-width: 300px; margin-left: 0px; margin-top: 0px; top: 119px; left: 66px; right: auto; bottom: auto; display: block; background-color: rgba(0, 0, 0, 0.701961);">
-    <div class="content">
-      <div class="text widget_text" style="z-index: 4; color: rgb(255, 255, 255); text-align: left; font-size: 14px;">
-        Small buildings are dark, and larger buildings are lighter in color.
-        <br>Parcels are the reverse: small parcels are light and larger parcels are darker
+      <form class="search" id="search" role="search" autocomplete="off">
+        <label class="eyebrow" for="q">Find a place</label>
+        <input id="q" type="search" placeholder="Address or place in LA County" aria-describedby="search-note">
+        <ul class="results" id="results"></ul>
+        <p class="search-note" id="search-note"></p>
+      </form>
+
+      <div>
+        <p class="eyebrow">Area in square feet</p>
+        <div style="display:grid; gap:12px">
+          <div class="ramp" id="ramp-buildings"></div>
+          <div class="ramp" id="ramp-parcels"></div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <div class="cartodb-overlay overlay-text desktop content text widget_text" style="z-index: 4; margin-left: 0px; margin-top: 0px; top: 55px; right: 60px; left: auto: bottom: auto; display: block; background-color: rgba(0, 0, 0, 0.701961);">
-    <div class="content">
-      <div id="label-control" class="text widget_text" style="z-index: 4; color: rgb(255, 255, 255); text-align: left; font-size: 14px;">
+      <div>
+        <p class="eyebrow">Show</p>
+        <div class="chips" id="layers">
+          <button class="chip" type="button" id="show-buildings" aria-pressed="true">buildings</button>
+          <button class="chip" type="button" id="show-parcels" aria-pressed="true">parcels</button>
+          <button class="chip" type="button" id="show-labels" aria-pressed="false">labels</button>
+        </div>
+        <p class="layer-note" id="layer-note">Buildings and parcels toggle separately when zoomed in past z14.5.</p>
       </div>
+
+      <div>
+        <p class="eyebrow">Background</p>
+        <div class="chips" id="backgrounds"></div>
+      </div>
+
+      <p class="source">A rebuild of <a href="https://stamen.com/using-open-data-to-learn-about-los-angeles-5b30192a68b0/">la.stamen.com</a> (2016) by <a href="https://stamen.com">Stamen Design</a>. Data: County of Los Angeles Assessor parcels (2025) and LARIAC building outlines (2020).</p>
     </div>
-  </div>
-  <div id='cartodb-map'></div>
-<!-- cut and paste legend from the one on CARTO. Will rebuild it later -->
-<div class="cartodb-legend-stack" style="display: block;"><div class="cartodb-legend choropleth" style="display: block;">
-<div class="legend-title">Building Area</div><ul><li class="min">		smaller</li><li class="max">		larger</li><li class="graph count_441">	<div class="colors">
-	<div class="quartile" style="background-color:#252525"></div>
-	<div class="quartile" style="background-color:#525252"></div>
-	<div class="quartile" style="background-color:#737373"></div>
-	<div class="quartile" style="background-color:#969696"></div>
-	<div class="quartile" style="background-color:#BDBDBD"></div>
-	<div class="quartile" style="background-color:#D9D9D9"></div>
-	<div class="quartile" style="background-color:#F7F7F7"></div>
-	</div></li></ul></div><div class="cartodb-legend choropleth" style="display: block;">
-<div class="legend-title">Parcel Area</div><ul><li class="min">		smaller</li><li class="max">		larger</li><li class="graph count_441">	<div class="colors">
-	<div class="quartile" style="background-color:#F7F7F7"></div>
-	<div class="quartile" style="background-color:#D9D9D9"></div>
-	<div class="quartile" style="background-color:#BDBDBD"></div>
-	<div class="quartile" style="background-color:#969696"></div>
-	<div class="quartile" style="background-color:#737373"></div>
-	<div class="quartile" style="background-color:#525252"></div>
-	<div class="quartile" style="background-color:#252525"></div>
-	</div></li></ul></div></div>
+  </details>
+
+  <div class="panel" id="status" aria-live="polite"><b id="zoom">z–</b><span class="mode" id="mode"></span></div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js"></script>
+  <script>
+    // URL parameters, compatible with the 2016 site:
+    //   ?background=<css color name or hex>   ?labels=true
+    // and for development:
+    //   ?tiles=<base url of the .pmtiles files>  (default: tiles/ next to this page)
+    const params = new URLSearchParams(location.search);
+    const TILES_BASE = (params.get('tiles') || new URL('tiles/', location.href).href).replace(/\/?$/, '/');
+
+    // 2016 palette; round-number class breaks (sq ft, inclusive upper bounds), see prototype/palette.py.
+    const GREYS = ['#252525', '#525252', '#737373', '#969696', '#BDBDBD', '#D9D9D9', '#F7F7F7'];
+    const BREAKS = {
+      buildings: [400, 800, 1400, 1800, 2400, 3000],
+      parcels: [5000, 6000, 7000, 8000, 10000, 20000],
+    };
+    const SWITCH_ZOOM = 14.5;  // pre-rendered raster below, vector tiles at and above
+    const COUNTY_BBOX = [-118.95, 32.75, -117.64, 34.83];
+
+    // ---- Legend ----
+    function ramp(el, name, label, colors) {
+      const fmt = (v) => v.toLocaleString('en-US');
+      el.innerHTML = `<div class="ramp-head">${label}<span>smaller → larger</span></div>
+        <div class="bar">${colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
+        <div class="ticks">${BREAKS[name].map((b, i) => `<span style="left:${((i + 1) / 7) * 100}%">${fmt(b)}</span>`).join('')}</div>`;
+    }
+    ramp(document.getElementById('ramp-buildings'), 'buildings', 'Buildings', GREYS);
+    ramp(document.getElementById('ramp-parcels'), 'parcels', 'Parcels', [...GREYS].reverse());
+
+    // ---- Background color ----
+    const BACKGROUNDS = [
+      ['turquoise', '#40e0d0'], ['steelblue', '#4682b4'], ['tomato', '#ff6347'], ['white', '#ffffff'], ['black', '#000000'],
+    ];
+    const bgWrap = document.getElementById('backgrounds');
+    function setBg(name, value, { updateUrl = true } = {}) {
+      document.documentElement.style.setProperty('--map-bg', value);
+      document.documentElement.style.setProperty('--focus', value === '#000000' ? '#ffffff' : value);
+      for (const b of bgWrap.children) b.setAttribute('aria-pressed', String(b.dataset.name === name));
+      if (updateUrl) setParam('background', name === 'turquoise' ? null : name);
+    }
+    for (const [name, value] of BACKGROUNDS) {
+      const b = document.createElement('button');
+      b.className = 'chip'; b.type = 'button'; b.dataset.name = name; b.id = `bg-${name}`;
+      b.innerHTML = `<span class="dot" style="background:${value}"></span>${name}`;
+      b.addEventListener('click', () => setBg(name, value));
+      bgWrap.appendChild(b);
+    }
+    (function initBg() {
+      const want = params.get('background');
+      const known = BACKGROUNDS.find(([n]) => n === want);
+      if (known) return setBg(known[0], known[1], { updateUrl: false });
+      if (want && /^\w+$/.test(want)) {
+        for (const c of [want, '#' + want]) {
+          if (CSS.supports('color', c)) return setBg(want, c, { updateUrl: false });
+        }
+      }
+      setBg('turquoise', '#40e0d0', { updateUrl: false });
+    })();
+
+    function setParam(key, value) {
+      const url = new URL(location.href);
+      if (value == null) url.searchParams.delete(key); else url.searchParams.set(key, value);
+      history.replaceState(null, '', url);
+    }
+
+    // ---- Raster display ----
+    // Raster tiles are 512 px images, and each zoom level is a box-filtered half of the next.
+    // MapLibre samples them LINEAR_MIPMAP_NEAREST, which snaps to one mip level: where a tile is
+    // drawn shrunk past ~1.4x the GPU jumps to the half-size copy and the map visibly softens at
+    // a fixed zoom. Trilinear filtering blends the two levels instead.
+    (function preferTrilinear() {
+      for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+        if (!C) continue;
+        const orig = C.prototype.texParameteri;
+        C.prototype.texParameteri = function (target, pname, param) {
+          if (pname === this.TEXTURE_MIN_FILTER && param === this.LINEAR_MIPMAP_NEAREST) param = this.LINEAR_MIPMAP_LINEAR;
+          return orig.call(this, target, pname, param);
+        };
+      }
+    })();
+    // Size raster tile slots so tiles are always drawn between 1x and 2x shrunk on this screen:
+    // MapLibre then hands off between levels where the finer level's half-size copy equals the
+    // coarser level, so the switch is invisible.
+    const rasterTileSize = () => 512 / (window.devicePixelRatio * Math.SQRT2);
+    const byClass = (colors) => ['match', ['get', 'c'], ...colors.flatMap((c, i) => [i, c]), colors[0]];
+
+    // Stamen Toner labels from Stadia Maps (authenticated by domain; localhost works without a key).
+    const labelUrl = () =>
+      `https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}${window.devicePixelRatio >= 1.5 ? '@2x' : ''}.png`;
+    const showLabelsAtStart = params.get('labels') === 'true';
+
+    const protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      hash: true,
+      center: [-118.30, 34.06],
+      zoom: 11,
+      minZoom: 0,
+      maxZoom: 19,
+      dragRotate: false,
+      pitchWithRotate: false,
+      attributionControl: { compact: true, customAttribution: 'Map by <a href="https://stamen.com">Stamen Design</a> · Data: County of Los Angeles' },
+      style: {
+        version: 8,
+        sources: {
+          lowzoom: { type: 'raster', url: `pmtiles://${TILES_BASE}la-raster.pmtiles`, tileSize: rasterTileSize() },
+          features: { type: 'vector', url: `pmtiles://${TILES_BASE}la-vector.pmtiles` },
+          labels: {
+            type: 'raster', tiles: [labelUrl()], tileSize: 256, maxzoom: 20,
+            attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://stamen.com/">Stamen Design</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          },
+        },
+        // No background layer: the canvas stays transparent and the page color shows through the streets.
+        layers: [
+          { id: 'lowzoom', type: 'raster', source: 'lowzoom', maxzoom: SWITCH_ZOOM,
+            paint: { 'raster-resampling': 'linear', 'raster-fade-duration': 0 } },
+          { id: 'parcels', type: 'fill', source: 'features', 'source-layer': 'parcels', minzoom: SWITCH_ZOOM,
+            paint: { 'fill-color': byClass([...GREYS].reverse()) } },
+          { id: 'buildings', type: 'fill', source: 'features', 'source-layer': 'buildings', minzoom: SWITCH_ZOOM,
+            paint: { 'fill-color': byClass(GREYS) } },
+          { id: 'labels', type: 'raster', source: 'labels',
+            layout: { visibility: showLabelsAtStart ? 'visible' : 'none' } },
+        ],
+      },
+    });
+    map.touchZoomRotate.disableRotation();
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new maplibregl.ScaleControl(), 'bottom-right');
+    window.__map = map;
+
+    // Rebuild density-dependent sources if the window moves to a screen with a different density.
+    (function watchDensity() {
+      const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      mq.addEventListener('change', () => {
+        const style = map.getStyle();
+        const raster = map.getSource('lowzoom');
+        if (raster && raster.tileSize !== rasterTileSize()) {
+          const layer = style.layers.find((l) => l.id === 'lowzoom');
+          const before = style.layers[style.layers.indexOf(layer) + 1]?.id;
+          map.removeLayer('lowzoom'); map.removeSource('lowzoom');
+          map.addSource('lowzoom', { ...style.sources.lowzoom, tileSize: rasterTileSize() });
+          map.addLayer(layer, before);
+        }
+        map.getSource('labels')?.setTiles([labelUrl()]);
+        watchDensity();
+      }, { once: true });
+    })();
+
+    // ---- Layer toggles ----
+    const note = document.getElementById('layer-note');
+    function bindToggle(id, layer, { param } = {}) {
+      const btn = document.getElementById(id);
+      const set = (on) => {
+        btn.setAttribute('aria-pressed', String(on));
+        map.setLayoutProperty(layer, 'visibility', on ? 'visible' : 'none');
+        if (param) setParam(param, on ? 'true' : null);
+      };
+      btn.addEventListener('click', () => set(btn.getAttribute('aria-pressed') !== 'true'));
+      return set;
+    }
+    map.on('load', () => {
+      bindToggle('show-buildings', 'buildings');
+      bindToggle('show-parcels', 'parcels');
+      const setLabels = bindToggle('show-labels', 'labels', { param: 'labels' });
+      if (showLabelsAtStart) setLabels(true);
+    });
+
+    // ---- Zoom readout ----
+    const zoomEl = document.getElementById('zoom'), modeEl = document.getElementById('mode');
+    function showZoom() {
+      const z = map.getZoom();
+      zoomEl.textContent = `z${z.toFixed(1)}`;
+      modeEl.textContent = z < SWITCH_ZOOM ? 'pre-rendered raster' : 'vector tiles';
+      note.hidden = z >= SWITCH_ZOOM;
+    }
+    map.on('zoom', showZoom); map.on('load', showZoom);
+
+    // ---- Search (Photon, an OpenStreetMap geocoder by Komoot) ----
+    const form = document.getElementById('search'), q = document.getElementById('q');
+    const results = document.getElementById('results'), searchNote = document.getElementById('search-note');
+    let pending, lastQuery = '';
+    function describe(p) {
+      const main = p.name || [p.housenumber, p.street].filter(Boolean).join(' ') || p.city || 'Unnamed place';
+      const where = [p.name && p.street ? [p.housenumber, p.street].filter(Boolean).join(' ') : null, p.city || p.county]
+        .filter(Boolean).join(', ');
+      return { main, where };
+    }
+    async function search(text) {
+      lastQuery = text;
+      if (text.trim().length < 3) { results.innerHTML = ''; searchNote.textContent = ''; return; }
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=6&lang=en&bbox=${COUNTY_BBOX.join(',')}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (text !== lastQuery) return;  // a newer query is on its way
+        results.innerHTML = '';
+        searchNote.textContent = data.features.length ? 'Search by Photon · OpenStreetMap' : 'No matches in LA County.';
+        for (const f of data.features) {
+          const { main, where } = describe(f.properties);
+          const li = document.createElement('li');
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.innerHTML = `${main}${where ? `<small>${where}</small>` : ''}`;
+          b.addEventListener('click', () => goTo(f));
+          li.appendChild(b); results.appendChild(li);
+        }
+      } catch (e) {
+        searchNote.textContent = 'Search is unavailable right now. Try again in a moment.';
+      }
+    }
+    function goTo(f) {
+      const [lon, lat] = f.geometry.coordinates;
+      const ext = f.properties.extent;  // [W, N, E, S] for areas
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (ext) map.fitBounds([[ext[0], ext[3]], [ext[2], ext[1]]], { maxZoom: 16.5, animate: !reduce, padding: 40 });
+      else map[reduce ? 'jumpTo' : 'flyTo']({ center: [lon, lat], zoom: 16.5 });
+      results.innerHTML = '';
+    }
+    q.addEventListener('input', () => { clearTimeout(pending); pending = setTimeout(() => search(q.value), 250); });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const first = results.querySelector('button');
+      if (first) first.click(); else search(q.value);
+    });
+
+    // Start collapsed on narrow screens so the map shows.
+    if (window.matchMedia('(max-width: 600px)').matches) document.getElementById('info').open = false;
+  </script>
 </body>
 </html>

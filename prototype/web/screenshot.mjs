@@ -13,14 +13,14 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+const here = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');  // repo root: the site's index.html
 // Resolve playwright locally, falling back to the global install.
 const require = createRequire(import.meta.url);
 let pw;
 try { pw = require('playwright'); } catch { pw = require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); }
 const { chromium } = pw;
 const [outDir, ...views] = process.argv.slice(2);
-const tilesDir = process.env.TILES_DIR || path.join(here, '..', 'data');
+const tilesDir = process.env.TILES_DIR || path.join(here, 'prototype', 'data');
 const depsDir = process.env.DEPS_DIR;
 const ORIGIN = 'http://la.test/';
 

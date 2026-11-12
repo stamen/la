@@ -150,9 +150,12 @@
     // URL parameters, compatible with the 2016 site:
     //   ?background=<css color name or hex>   ?labels=true
     // and for development:
-    //   ?tiles=<base url of the .pmtiles files>  (default: tiles/ next to this page)
+    //   ?tiles=<base url of the .pmtiles files>  (default: CloudFront; ./tiles/ on localhost)
     const params = new URLSearchParams(location.search);
-    const TILES_BASE = (params.get('tiles') || new URL('tiles/', location.href).href).replace(/\/?$/, '/');
+    // Tiles live on CloudFront (S3 origin); local development serves them from ./tiles/.
+    const TILES_HOST = 'https://d2a8fp87hzkuh6.cloudfront.net/';
+    const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
+    const TILES_BASE = (params.get('tiles') || (isLocal ? new URL('tiles/', location.href).href : TILES_HOST)).replace(/\/?$/, '/');
 
     // 2016 palette; round-number class breaks (sq ft, inclusive upper bounds), see prototype/palette.py.
     const GREYS = ['#252525', '#525252', '#737373', '#969696', '#BDBDBD', '#D9D9D9', '#F7F7F7'];

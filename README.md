@@ -45,14 +45,17 @@ The page loads `la-raster.pmtiles` (~1 GB) and `la-vector.pmtiles` (~1 GB) with 
    - Response headers policy: `CORS-With-Preflight` (or a custom one allowing
      `https://la.stamen.com` with `GET, HEAD` and exposing `ETag, Content-Range, Accept-Ranges`).
    - Optional custom domain such as `tiles.stamen.com`, with a certificate from ACM in `us-east-1`.
-3. **Upload**:
+3. **Build and upload** (in a session or machine with the AWS variables set; see below):
    ```sh
-   aws s3 cp prototype/data/la-raster.pmtiles s3://la-stamen-tiles/ --content-type application/octet-stream
-   aws s3 cp prototype/data/la-vector.pmtiles s3://la-stamen-tiles/ --content-type application/octet-stream
+   bash prototype/build_all.sh            # ~1.5 h: fetch, prep, vector + raster tiles
+   python prototype/upload_tiles.py       # uploads both archives to $LA_TILES_BUCKET
    ```
-   After replacing a file, invalidate it in CloudFront (`/la-raster.pmtiles`, `/la-vector.pmtiles`).
-4. **Point the site at it**: set the default tiles base in `index.html` (`TILES_BASE`) to the
-   CloudFront URL.
+   After replacing files, invalidate `/la-raster.pmtiles` and `/la-vector.pmtiles` in CloudFront.
+4. The site reads tiles from `TILES_HOST` in `index.html` (currently
+   `https://d2a8fp87hzkuh6.cloudfront.net/`), and from `./tiles/` on localhost.
+
+Environment variables for the upload: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_DEFAULT_REGION` (the bucket's region) and `LA_TILES_BUCKET` (the bucket name).
 
 An IAM policy for an upload-only key limited to the bucket:
 

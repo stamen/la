@@ -95,24 +95,30 @@ def main():
         os.replace(path + ".tmp", path)
         return d["features"]
 
-    feats, t0 = [], time.time()
+    # Convert and write each page as it arrives: holding every feature as Python
+    # objects at once runs out of memory at county scale (3.1M buildings).
+    schema = pa.schema([("geometry", pa.binary())] + [(k, pa.string()) for k in cfg["fields"]]
+                       + [("area_ft2", pa.float64())])
+    got = kept = 0
+    t0 = time.time()
     starts = range(lo, hi + 1, PAGE)
-    with cf.ThreadPoolExecutor(args.workers) as ex:
+    with cf.ThreadPoolExecutor(args.workers) as ex, pq.ParquetWriter(args.out, schema, compression="zstd") as writer:
         for i, fs in enumerate(ex.map(page, starts)):
-            feats.extend(fs)
+            got += len(fs)
+            fs = [f for f in fs if f.get("geometry")]
+            if fs:
+                geoms = shapely.from_geojson([json.dumps(f["geometry"]) for f in fs])
+                cols = {"geometry": shapely.to_wkb(geoms)}
+                for k in cfg["fields"]:
+                    cols[k] = [None if f["properties"].get(k) is None else str(f["properties"][k]) for f in fs]
+                cols["area_ft2"] = [float(f["properties"].get(cfg["area"]) or 0.0) for f in fs]
+                writer.write_table(pa.table(cols, schema=schema))
+                kept += len(fs)
             if i % 100 == 0:
-                print(f"  page {i}/{len(starts)}: {len(feats):,}/{n:,}  {time.time() - t0:.0f}s", flush=True)
-    if len(feats) != n:
-        print(f"  warning: got {len(feats):,} features, server count was {n:,}")
-
-    feats = [f for f in feats if f.get("geometry")]
-    geoms = shapely.from_geojson([json.dumps(f["geometry"]) for f in feats])
-    cols = {"geometry": shapely.to_wkb(geoms)}
-    for k in cfg["fields"]:
-        cols[k] = [f["properties"].get(k) for f in feats]
-    cols["area_ft2"] = [float(f["properties"].get(cfg["area"]) or 0.0) for f in feats]
-    pq.write_table(pa.table(cols), args.out, compression="zstd")
-    print(f"wrote {len(feats):,} {args.layer} to {args.out}")
+                print(f"  page {i}/{len(starts)}: {got:,}/{n:,}  {time.time() - t0:.0f}s", flush=True)
+    if got != n:
+        print(f"  warning: got {got:,} features, server count was {n:,}")
+    print(f"wrote {kept:,} {args.layer} to {args.out}")
 
 
 if __name__ == "__main__":

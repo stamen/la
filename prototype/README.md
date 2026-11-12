@@ -27,7 +27,7 @@ python build_raster_tiles.py data/la-raster.pmtiles                 # z9-15, 512
 python build_overviews.py data/la-raster.pmtiles data/la-raster-ov.pmtiles --from-zoom 11 && mv data/la-raster-ov.pmtiles data/la-raster.pmtiles  # z0-10 by averaging down
 python export_geojsonseq.py data/parcels.parquet --layer parcels --area-field area_ft2 > data/parcels.geojsonl
 python export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --area-field area_ft2 > data/buildings.geojsonl
-tippecanoe -o data/la-vector.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
+tippecanoe -o data/la-vector-v2.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
   --no-tiny-polygon-reduction --detect-shared-borders \
   -L parcels:data/parcels.geojsonl -L buildings:data/buildings.geojsonl
 # view locally: node web/serve.mjs 8080   -> http://localhost:8080/#12/34.06/-118.3

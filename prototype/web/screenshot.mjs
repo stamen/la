@@ -3,7 +3,7 @@
 //   node screenshot.mjs OUT_DIR "z/lat/lon" ["z/lat/lon" ...]
 //
 // Env:
-//   TILES_DIR   directory holding la-raster.pmtiles / la-vector.pmtiles (default ../data)
+//   TILES_DIR   directory holding la-raster.pmtiles / la-vector-v2.pmtiles (default ../data)
 //   DEPS_DIR    node_modules with maplibre-gl, pmtiles, fflate; when set, unpkg.com
 //               requests are answered from there (for offline/sandboxed runs)
 //   SCALE       deviceScaleFactor (default 1)

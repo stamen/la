@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the countywide tiles from scratch: data/la-raster.pmtiles and data/la-vector.pmtiles.
+# Build the countywide tiles from scratch: data/la-raster.pmtiles and data/la-vector-v2.pmtiles.
 # Takes ~1.5 hours on 4 cores (most of it the z15 raster level) and ~10 GB of disk.
 #
 #   bash prototype/build_all.sh          # from the repo root
@@ -34,7 +34,7 @@ python3 prep.py data/lariac_buildings.parquet data/buildings.npz --layer buildin
 echo "== vector tiles (z13-16)"
 python3 export_geojsonseq.py data/parcels.parquet --layer parcels --area-field area_ft2 > data/parcels.geojsonl
 python3 export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --area-field area_ft2 > data/buildings.geojsonl
-"$TIPPECANOE" -q -P -o data/la-vector.pmtiles --force -Z13 -z16 --drop-rate=1 --no-feature-limit \
+"$TIPPECANOE" -q -P -o data/la-vector-v2.pmtiles --force -Z13 -z16 --drop-rate=1 --no-feature-limit \
   --no-tile-size-limit --no-tiny-polygon-reduction --detect-shared-borders \
   --attribution "County of Los Angeles: Assessor parcels (2025), LARIAC buildings (2020)" \
   -L parcels:data/parcels.geojsonl -L buildings:data/buildings.geojsonl
@@ -45,5 +45,5 @@ python3 build_raster_tiles.py data/la-raster-z11-15.pmtiles --bbox data --minzoo
 python3 build_overviews.py data/la-raster-z11-15.pmtiles data/la-raster.pmtiles --from-zoom 11 --to-zoom 0
 rm -f data/la-raster-z11-15.pmtiles
 
-ls -la data/la-raster.pmtiles data/la-vector.pmtiles
+ls -la data/la-raster.pmtiles data/la-vector-v2.pmtiles
 echo "== done"

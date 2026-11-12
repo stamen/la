@@ -12,9 +12,10 @@ server.
   full resolution and supersampled, so features smaller than a pixel still shade it by their area.
   That keeps the dense low-zoom texture the 2016 Mapnik rendering had, which vector tiles cannot
   reproduce.
-- **From z14.5** it shows vector tiles, with buildings/parcels toggles.
-- Labels are Stamen Toner labels from [Stadia Maps](https://stadiamaps.com/) (domain-authenticated
-  for `*.stamen.com`). Search uses [Photon](https://photon.komoot.io/).
+- **From z14.5** it shows vector tiles, with buildings/parcels toggles. Hovering (or tapping) a
+  building or parcel outlines it in the page color and shows its area, and a parcel's AIN.
+- Labels are the vector Stamen Toner labels from [Stadia Maps](https://stadiamaps.com/)
+  (domain-authenticated for `*.stamen.com`), loaded the first time they are turned on. Search uses [Photon](https://photon.komoot.io/).
 
 Data: County of Los Angeles Assessor parcels (2025 roll) and LARIAC building outlines (2020), from
 the county's ArcGIS Online services.
@@ -37,7 +38,7 @@ open http://localhost:8080/#11/34.06/-118.3
 
 ## Hosting the tiles on AWS (S3 + CloudFront)
 
-The page loads `la-raster.pmtiles` (~320 MB) and `la-vector.pmtiles` (~445 MB) with HTTP range requests.
+The page loads `la-raster.pmtiles` (~320 MB) and `la-vector-v2.pmtiles` (~715 MB) with HTTP range requests.
 
 1. **S3 bucket** (any region), private, e.g. `la-stamen-tiles`.
 2. **CloudFront distribution** with that bucket as origin, using Origin Access Control.
@@ -50,7 +51,9 @@ The page loads `la-raster.pmtiles` (~320 MB) and `la-vector.pmtiles` (~445 MB) w
    bash prototype/build_all.sh            # ~1.5 h: fetch, prep, vector + raster tiles
    python prototype/upload_tiles.py       # uploads both archives to $LA_TILES_BUCKET
    ```
-   After replacing files, invalidate `/la-raster.pmtiles` and `/la-vector.pmtiles` in CloudFront.
+   CloudFront caches each file for a day. When a rebuild changes what the page expects (new
+   properties, say), upload it under a new name (`la-vector-v2` -> `v3`) and point `index.html` at
+   it, so the live site keeps working until the change is merged; otherwise invalidate the path.
 4. The site reads tiles from `TILES_HOST` in `index.html` (currently
    `https://d2a8fp87hzkuh6.cloudfront.net/`), and from `./tiles/` on localhost.
 

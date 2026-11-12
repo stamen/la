@@ -1,0 +1,333 @@
+<title>la.stamen.com Mid-Wilshire</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/*MAPLIBRE_CSS*/
+</style>
+<style>
+  /* Layout: the map is the page; dark translucent panels float over it like the 2016 CARTO overlays.
+     A single committed look: the map's background color is chosen by the viewer, panels are always dark. */
+  :root {
+    --map-bg: #40e0d0;              /* CSS turquoise, the original default */
+    --panel: rgba(12, 14, 14, 0.82);
+    --panel-line: rgba(255, 255, 255, 0.14);
+    --ink: #f3f4f2;
+    --ink-dim: #a9b0ae;
+    --focus: #40e0d0;
+    --font-display: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { background: var(--map-bg); color: var(--ink); font-family: var(--font-display); overflow: hidden;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  #map { position: fixed; inset: 0; background: transparent; }
+
+  .panel {
+    position: absolute; z-index: 2; background: var(--panel); color: var(--ink);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    border: 1px solid var(--panel-line); border-radius: 4px;
+  }
+  #info {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: max(12px, env(safe-area-inset-left, 0px));
+    width: min(340px, calc(100vw - 72px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))); /* clear of the zoom buttons */
+    max-height: calc(100% - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+  #info > summary {
+    list-style: none; cursor: pointer; padding: 12px 14px; display: flex; gap: 10px; align-items: baseline; justify-content: space-between;
+  }
+  #info > summary::-webkit-details-marker { display: none; }
+  #info > summary:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  h1 { margin: 0; font-size: 1.15rem; font-weight: 700; line-height: 1.2; text-wrap: balance; }
+  .toggle { font: 500 0.7rem var(--font-data); color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  #info[open] .toggle .closed, #info:not([open]) .toggle .open { display: none; }
+  .body { display: grid; gap: 16px; padding: 0 14px 14px; }
+  .lede { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--ink); }
+  .eyebrow { font: 500 0.66rem var(--font-data); text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); margin: 0 0 6px; }
+
+  .ramp { display: grid; gap: 4px; }
+  .ramp-head { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; }
+  .ramp-head span { font: 400 0.7rem var(--font-data); color: var(--ink-dim); }
+  .bar { display: grid; grid-template-columns: repeat(7, 1fr); height: 14px; border: 1px solid var(--panel-line); }
+  .ticks { position: relative; height: 14px; font: 400 0.62rem var(--font-data); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font: 500 0.72rem var(--font-data); color: var(--ink); background: transparent; cursor: pointer;
+    border: 1px solid var(--panel-line); border-radius: 3px; padding: 5px 8px; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip:hover { border-color: var(--ink-dim); }
+  .chip[aria-pressed="true"] { border-color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); }
+
+  .source { margin: 0; font-size: 0.72rem; line-height: 1.45; color: var(--ink-dim); }
+
+  #status {
+    left: max(12px, env(safe-area-inset-left, 0px));
+    bottom: calc(44px + env(safe-area-inset-bottom, 0px)); /* above the attribution */
+    padding: 6px 10px; font: 400 0.72rem var(--font-data); font-variant-numeric: tabular-nums; display: flex; gap: 10px; align-items: center;
+  }
+  #status b { font-weight: 500; }
+  .mode { color: var(--ink-dim); }
+  .maplibregl-ctrl-bottom-right { padding-right: env(safe-area-inset-right, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .maplibregl-ctrl-top-right { padding-right: env(safe-area-inset-right, 0px); padding-top: env(safe-area-inset-top, 0px); }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div id="map" role="region" aria-label="Map of Mid-Wilshire parcels and buildings"></div>
+
+<details class="panel" id="info" open>
+  <summary>
+    <h1>Los Angeles buildings and parcels</h1>
+    <span class="toggle"><span class="open">Hide</span><span class="closed">More</span></span>
+  </summary>
+  <div class="body">
+    <p class="lede">Each lot and building is shaded by its area. Small buildings are dark and large ones light; parcels run the other way, so small lots are light and large lots dark. The streets are simply the space between parcels.</p>
+
+    <div>
+      <p class="eyebrow">Area in square feet</p>
+      <div style="display:grid; gap:12px">
+        <div class="ramp" id="ramp-buildings"></div>
+        <div class="ramp" id="ramp-parcels"></div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow">Go to</p>
+      <div class="chips" id="views"></div>
+    </div>
+
+    <div>
+      <p class="eyebrow">Background</p>
+      <div class="chips" id="backgrounds"></div>
+    </div>
+
+    <p class="source">Mid-Wilshire excerpt of a rebuild of la.stamen.com (2016). Pre-rendered raster tiles below z14.5, vector tiles above. Data: County of Los Angeles Assessor parcels (2025) and LARIAC building outlines (2020).</p>
+  </div>
+</details>
+
+<div class="panel" id="status" aria-live="polite"><b id="zoom">Loading</b><span class="mode" id="mode">tiles</span></div>
+
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js"></script>
+<script>
+  // 2016 palette; round-number class breaks (square feet, inclusive upper bounds) from palette.py.
+  const GREYS = ['#252525', '#525252', '#737373', '#969696', '#BDBDBD', '#D9D9D9', '#F7F7F7'];
+  const BREAKS = {
+    buildings: [400, 800, 1400, 1800, 2400, 3000],
+    parcels: [5000, 6000, 7000, 8000, 10000, 20000],
+  };
+  const SWITCH_ZOOM = 14.5;  // raster below, vector at and above
+
+  const VIEWS = {
+    'overview': { label: 'Overview', center: [-118.335, 34.065], zoom: 13.4 },
+    'park-la-brea': { label: 'Park La Brea', center: [-118.3545, 34.0715], zoom: 15.6 },
+    'hancock-park': { label: 'Hancock Park', center: [-118.3305, 34.0760], zoom: 14.8 },
+    'miracle-mile': { label: 'Miracle Mile', center: [-118.3500, 34.0620], zoom: 16.2 },
+    'koreatown-edge': { label: 'Western Ave', center: [-118.3090, 34.0640], zoom: 15.2 },
+  };
+  const BACKGROUNDS = [
+    ['turquoise', '#40e0d0'], ['steelblue', '#4682b4'], ['tomato', '#ff6347'], ['white', '#ffffff'], ['black', '#000000'],
+  ];
+
+  // Legend ramps.
+  function ramp(el, name, label, colors) {
+    const fmt = (v) => v.toLocaleString('en-US');
+    el.innerHTML = `<div class="ramp-head">${label}<span>smaller → larger</span></div>
+      <div class="bar">${colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
+      <div class="ticks">${BREAKS[name].map((b, i) => `<span style="left:${((i + 1) / 7) * 100}%">${fmt(b)}</span>`).join('')}</div>`;
+  }
+  ramp(document.getElementById('ramp-buildings'), 'buildings', 'Buildings', GREYS);
+  ramp(document.getElementById('ramp-parcels'), 'parcels', 'Parcels', [...GREYS].reverse());
+
+  // Background chips (the 2016 site took ?background=; artifacts can't pass query strings).
+  const bgWrap = document.getElementById('backgrounds');
+  let savedBg = null;
+  try { savedBg = localStorage.getItem('la-bg'); } catch (e) { /* storage unavailable */ }
+  function setBg(name, value) {
+    document.documentElement.style.setProperty('--map-bg', value);
+    document.documentElement.style.setProperty('--focus', value === '#000000' ? '#ffffff' : value);
+    for (const b of bgWrap.children) b.setAttribute('aria-pressed', String(b.dataset.name === name));
+    try { localStorage.setItem('la-bg', name); } catch (e) { /* storage unavailable */ }
+  }
+  for (const [name, value] of BACKGROUNDS) {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.dataset.name = name; b.id = `bg-${name}`;
+    b.innerHTML = `<span class="dot" style="background:${value}"></span>${name}`;
+    b.addEventListener('click', () => setBg(name, value));
+    bgWrap.appendChild(b);
+  }
+  const startBg = BACKGROUNDS.find(([n]) => n === savedBg) || BACKGROUNDS[0];
+  setBg(startBg[0], startBg[1]);
+
+  // Each PMTiles archive is published base64-encoded as one or more .txt parts (artifacts
+  // serve only web file types, at most 15 MB each). build.py fills in TILE_PARTS. Fetch the
+  // parts, decode each, join them in order, and serve pmtiles' byte-range reads from memory.
+  const TILE_PARTS = /*TILE_PARTS*/{ raster: ['tiles/raster.pmtiles.b64.txt'], vector: ['tiles/vector.pmtiles.b64.txt'] };
+  const TILE_BYTES = /*TILE_BYTES*/0;
+  const progress = { loaded: 0, total: TILE_BYTES };
+  async function fetchBase64(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+    let text;
+    if (res.body) {
+      const reader = res.body.getReader(), decoder = new TextDecoder(), parts = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(decoder.decode(value, { stream: true }));
+        progress.loaded += value.length; showProgress();
+      }
+      text = parts.join('') + decoder.decode();
+    } else {
+      text = await res.text();
+    }
+    const bin = atob(text.trim());
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  class WholeFileSource {
+    constructor(urls) { this.url = urls[0]; this.buffer = this.load(urls); }
+    async load(urls) {
+      const parts = await Promise.all(urls.map(fetchBase64));
+      const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+      let o = 0;
+      for (const p of parts) { out.set(p, o); o += p.length; }
+      return out.buffer;
+    }
+    getKey() { return this.url; }
+    async getBytes(offset, length) {
+      const buf = await this.buffer;
+      return { data: buf.slice(offset, offset + length) };
+    }
+  }
+
+  const zoomEl = document.getElementById('zoom'), modeEl = document.getElementById('mode');
+  let loading = true;
+  function showProgress() {
+    if (!loading) return;
+    zoomEl.textContent = 'Loading';
+    modeEl.textContent = progress.total ? `tiles, ${(progress.loaded / 1e6).toFixed(1)} of ${(progress.total / 1e6).toFixed(1)} MB` : 'tiles';
+  }
+
+  const protocol = new pmtiles.Protocol();
+  // pmtiles answers a raster tile that is not in the archive (open ocean, outside the county)
+  // with { data: null }, and MapLibre then leaves that tile "loading" forever, so the map
+  // never reports loaded. Answer missing raster tiles with a 1x1 transparent PNG instead.
+  const EMPTY_PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  maplibregl.addProtocol('pmtiles', async (params, abortController) => {
+    const res = await protocol.tile(params, abortController);
+    return params.type === 'image' && res.data == null ? { data: EMPTY_PNG } : res;
+  });
+  const rasterSrc = new WholeFileSource(TILE_PARTS.raster);
+  const vectorSrc = new WholeFileSource(TILE_PARTS.vector);
+  protocol.add(new pmtiles.PMTiles(rasterSrc));
+  protocol.add(new pmtiles.PMTiles(vectorSrc));
+
+  // Raster tiles are 512 px images, and each zoom level is a box-filtered half of the next.
+  // MapLibre uploads them with mipmaps but samples LINEAR_MIPMAP_NEAREST, which snaps to
+  // one mip level: where a tile is drawn shrunk past ~1.4x the GPU jumps to the half-size
+  // copy and the map visibly softens at a fixed zoom. Trilinear filtering blends the two
+  // levels instead, so sharpness changes continuously.
+  (function preferTrilinear() {
+    for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+      if (!C) continue;
+      const orig = C.prototype.texParameteri;
+      C.prototype.texParameteri = function (target, pname, param) {
+        if (pname === this.TEXTURE_MIN_FILTER && param === this.LINEAR_MIPMAP_NEAREST) param = this.LINEAR_MIPMAP_LINEAR;
+        return orig.call(this, target, pname, param);
+      };
+    }
+  })();
+  // Pick the tile slot size so tiles are always drawn between 1x and 2x shrunk on this
+  // screen (never enlarged below z14): MapLibre then hands off between levels exactly where
+  // the finer level's half-size copy equals the coarser level, so the switch is invisible.
+  const rasterTileSize = () => 512 / (window.devicePixelRatio * Math.SQRT2);
+  const byClass = (colors) => ['match', ['get', 'c'], ...colors.flatMap((c, i) => [i, c]), colors[0]];
+  const start = VIEWS[location.hash.slice(1)] || VIEWS.overview;
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    center: start.center,
+    zoom: start.zoom,
+    minZoom: 0,  // zoom all the way out to see how the texture blends; tiles exist only around the excerpt
+    maxZoom: 18,
+    dragRotate: false,
+    pitchWithRotate: false,
+    attributionControl: { compact: true, customAttribution: 'Map by Stamen Design · Data: County of Los Angeles' },
+    style: {
+      version: 8,
+      sources: {
+        lowzoom: { type: 'raster', url: `pmtiles://${rasterSrc.getKey()}`, tileSize: rasterTileSize() },
+        features: { type: 'vector', url: `pmtiles://${vectorSrc.getKey()}` },
+      },
+      // No background layer: the canvas stays transparent and the page color shows through the streets.
+      layers: [
+        { id: 'lowzoom', type: 'raster', source: 'lowzoom', maxzoom: SWITCH_ZOOM,
+          paint: { 'raster-resampling': 'linear', 'raster-fade-duration': 0 } },
+        { id: 'parcels', type: 'fill', source: 'features', 'source-layer': 'parcels', minzoom: SWITCH_ZOOM,
+          paint: { 'fill-color': byClass([...GREYS].reverse()) } },
+        { id: 'buildings', type: 'fill', source: 'features', 'source-layer': 'buildings', minzoom: SWITCH_ZOOM,
+          paint: { 'fill-color': byClass(GREYS) } },
+      ],
+    },
+  });
+  map.touchZoomRotate.disableRotation();
+
+  // Rebuild the raster source if the window moves to a screen with a different density.
+  (function watchDensity() {
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mq.addEventListener('change', () => {
+      const size = rasterTileSize();
+      const src = map.getSource('lowzoom');
+      if (src && src.tileSize !== size) {
+        const layer = map.getStyle().layers.find((l) => l.id === 'lowzoom');
+        const spec = { ...map.getStyle().sources.lowzoom, tileSize: size };
+        const before = map.getStyle().layers[map.getStyle().layers.indexOf(layer) + 1]?.id;
+        map.removeLayer('lowzoom'); map.removeSource('lowzoom');
+        map.addSource('lowzoom', spec); map.addLayer(layer, before);
+      }
+      watchDensity();
+    }, { once: true });
+  })();
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  map.addControl(new maplibregl.ScaleControl({ unit: 'imperial' }), 'bottom-right');
+  window.__map = map;
+
+  function showZoom() {
+    if (loading) return;
+    const z = map.getZoom();
+    zoomEl.textContent = `z${z.toFixed(1)}`;
+    modeEl.textContent = z < SWITCH_ZOOM ? 'pre-rendered raster' : 'vector tiles';
+  }
+  map.on('zoom', showZoom);
+  Promise.all([rasterSrc.buffer, vectorSrc.buffer])
+    .then(() => { loading = false; showZoom(); })
+    .catch((e) => { loading = false; zoomEl.textContent = 'Tiles failed to load'; modeEl.textContent = 'Reload the page to try again'; console.error(e); });
+
+  // Named views; the hash keeps one so a link can open on it.
+  const viewWrap = document.getElementById('views');
+  for (const [key, v] of Object.entries(VIEWS)) {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.id = `view-${key}`; b.textContent = v.label;
+    b.addEventListener('click', () => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      map[reduce ? 'jumpTo' : 'flyTo']({ center: v.center, zoom: v.zoom, ...(reduce ? {} : { speed: 1.4 }) });
+      history.replaceState(null, '', `#${key}`);
+    });
+    viewWrap.appendChild(b);
+  }
+  window.addEventListener('hashchange', () => {
+    const v = VIEWS[location.hash.slice(1)];
+    if (v) map.jumpTo({ center: v.center, zoom: v.zoom });
+  });
+
+  // Start collapsed on narrow screens so the map shows.
+  if (window.matchMedia('(max-width: 600px)').matches) document.getElementById('info').open = false;
+</script>

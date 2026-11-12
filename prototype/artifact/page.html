@@ -217,7 +217,14 @@
   }
 
   const protocol = new pmtiles.Protocol();
-  maplibregl.addProtocol('pmtiles', protocol.tile);
+  // pmtiles answers a raster tile that is not in the archive (open ocean, outside the county)
+  // with { data: null }, and MapLibre then leaves that tile "loading" forever, so the map
+  // never reports loaded. Answer missing raster tiles with a 1x1 transparent PNG instead.
+  const EMPTY_PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  maplibregl.addProtocol('pmtiles', async (params, abortController) => {
+    const res = await protocol.tile(params, abortController);
+    return params.type === 'image' && res.data == null ? { data: EMPTY_PNG } : res;
+  });
   const rasterSrc = new WholeFileSource(TILE_PARTS.raster);
   const vectorSrc = new WholeFileSource(TILE_PARTS.vector);
   protocol.add(new pmtiles.PMTiles(rasterSrc));

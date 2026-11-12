@@ -37,7 +37,7 @@ open http://localhost:8080/#11/34.06/-118.3
 
 ## Hosting the tiles on AWS (S3 + CloudFront)
 
-The page loads `la-raster.pmtiles` (~1 GB) and `la-vector.pmtiles` (~1 GB) with HTTP range requests.
+The page loads `la-raster.pmtiles` (~320 MB) and `la-vector.pmtiles` (~445 MB) with HTTP range requests.
 
 1. **S3 bucket** (any region), private, e.g. `la-stamen-tiles`.
 2. **CloudFront distribution** with that bucket as origin, using Origin Access Control.

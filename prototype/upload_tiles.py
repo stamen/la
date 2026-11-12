@@ -4,23 +4,26 @@ Reads credentials from the standard AWS environment variables
 (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION) and the bucket
 name from LA_TILES_BUCKET.
 
-    python prototype/upload_tiles.py [--check]
+    python prototype/upload_tiles.py [--check] [file ...]
 
+Uploads both archives by default, or only the named ones (e.g. la-vector-v2.pmtiles).
 --check only verifies the credentials can see the bucket.
-After replacing files that were uploaded before, invalidate /la-raster.pmtiles
-and /la-vector.pmtiles in CloudFront (or wait out the cache TTL).
+CloudFront caches files for a day. When a file's contents change in a way the page depends
+on, give it a new name (la-vector-v2 -> v3) and point index.html at it, so the live site
+keeps working until the new page is merged; otherwise invalidate the path in CloudFront.
 """
 import argparse
 import os
 import sys
 
-FILES = ["la-raster.pmtiles", "la-vector.pmtiles"]
+FILES = ["la-raster.pmtiles", "la-vector-v2.pmtiles"]
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("files", nargs="*", default=FILES)
     args = ap.parse_args()
     bucket = os.environ.get("LA_TILES_BUCKET")
     missing = [v for v in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION") if not os.environ.get(v)]
@@ -37,7 +40,7 @@ def main():
         return
 
     config = TransferConfig(multipart_threshold=64 * 1024 ** 2, multipart_chunksize=64 * 1024 ** 2, max_concurrency=8)
-    for name in FILES:
+    for name in args.files:
         path = os.path.join(HERE, "data", name)
         size = os.path.getsize(path)
         print(f"uploading {name} ({size / 1e6:.0f} MB)...", flush=True)

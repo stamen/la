@@ -93,6 +93,14 @@
     }
     #status b { font-weight: 500; }
     .mode { color: var(--ink-dim); }
+    #tip {
+      position: fixed; z-index: 3; pointer-events: none; padding: 7px 10px; display: grid; gap: 3px;
+      font: 400 0.74rem var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    #tip[hidden] { display: none; }
+    #tip .kind { font: 600 0.8rem var(--font-display); display: flex; align-items: center; gap: 7px; }
+    #tip .swatch { width: 11px; height: 11px; border: 1px solid rgba(255, 255, 255, 0.4); }
+    #tip .dim { color: var(--ink-dim); }
     .maplibregl-ctrl-bottom-right { padding-right: env(safe-area-inset-right, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
     .maplibregl-ctrl-top-right { padding-right: env(safe-area-inset-right, 0px); padding-top: env(safe-area-inset-top, 0px); }
   </style>
@@ -130,7 +138,7 @@
           <button class="chip" type="button" id="show-parcels" aria-pressed="true">parcels</button>
           <button class="chip" type="button" id="show-labels" aria-pressed="false">labels</button>
         </div>
-        <p class="layer-note" id="layer-note">Buildings and parcels toggle separately when zoomed in past z14.5.</p>
+        <p class="layer-note" id="layer-note">Zoom in past z14.5 to toggle buildings and parcels separately and see each one's area.</p>
       </div>
 
       <div>
@@ -142,6 +150,7 @@
     </div>
   </details>
 
+  <div class="panel" id="tip" role="tooltip" hidden></div>
   <div class="panel" id="status" aria-live="polite"><b id="zoom">z–</b><span class="mode" id="mode"></span></div>
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
@@ -181,7 +190,11 @@
       ['turquoise', '#40e0d0'], ['steelblue', '#4682b4'], ['tomato', '#ff6347'], ['white', '#ffffff'], ['black', '#000000'],
     ];
     const bgWrap = document.getElementById('backgrounds');
+    let bgColor = '#40e0d0';
+    const bgListeners = [];  // the map's hover outline follows the page color
     function setBg(name, value, { updateUrl = true } = {}) {
+      bgColor = value;
+      bgListeners.forEach((fn) => fn(value));
       document.documentElement.style.setProperty('--map-bg', value);
       document.documentElement.style.setProperty('--focus', value === '#000000' ? '#ffffff' : value);
       for (const b of bgWrap.children) b.setAttribute('aria-pressed', String(b.dataset.name === name));
@@ -233,9 +246,9 @@
     const rasterTileSize = () => 512 / (window.devicePixelRatio * Math.SQRT2);
     const byClass = (colors) => ['match', ['get', 'c'], ...colors.flatMap((c, i) => [i, c]), colors[0]];
 
-    // Stamen Toner labels from Stadia Maps (authenticated by domain; localhost works without a key).
-    const labelUrl = () =>
-      `https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}${window.devicePixelRatio >= 1.5 ? '@2x' : ''}.png`;
+    // Stamen Toner labels, the vector version from Stadia Maps (authenticated by domain; localhost
+    // works without a key). The style is fetched and merged in the first time labels are turned on.
+    const LABEL_STYLE = 'https://tiles.stadiamaps.com/styles/stamen_toner_labels.json';
     const showLabelsAtStart = params.get('labels') === 'true';
 
     const protocol = new pmtiles.Protocol();
@@ -262,11 +275,9 @@
         version: 8,
         sources: {
           lowzoom: { type: 'raster', url: `pmtiles://${TILES_BASE}la-raster.pmtiles`, tileSize: rasterTileSize() },
-          features: { type: 'vector', url: `pmtiles://${TILES_BASE}la-vector.pmtiles` },
-          labels: {
-            type: 'raster', tiles: [labelUrl()], tileSize: 256, maxzoom: 20,
-            attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://stamen.com/">Stamen Design</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          },
+          // Every feature has an id (stable across tiles) and properties c (area class), a (sq ft)
+          // and, on parcels, ain (Assessor ID Number); see prototype/export_geojsonseq.py.
+          features: { type: 'vector', url: `pmtiles://${TILES_BASE}la-vector-v2.pmtiles` },
         },
         // No background layer: the canvas stays transparent and the page color shows through the streets.
         layers: [
@@ -276,8 +287,17 @@
             paint: { 'fill-color': byClass([...GREYS].reverse()) } },
           { id: 'buildings', type: 'fill', source: 'features', 'source-layer': 'buildings', minzoom: SWITCH_ZOOM,
             paint: { 'fill-color': byClass(GREYS) } },
-          { id: 'labels', type: 'raster', source: 'labels',
-            layout: { visibility: showLabelsAtStart ? 'visible' : 'none' } },
+          // Hover outlines in the page color. Lines on vector tiles are clipped at tile edges, so
+          // a shape split across tiles is outlined as one.
+          ...['parcels', 'buildings'].map((layer) => ({
+            id: `${layer}-hover`, type: 'line', source: 'features', 'source-layer': layer, minzoom: SWITCH_ZOOM,
+            layout: { 'line-join': 'round' },
+            paint: {
+              'line-color': bgColor, 'line-width': 2.5,
+              'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
+            },
+          })),
+          // Toner label layers are added above these when labels are first shown.
         ],
       },
     });
@@ -299,29 +319,130 @@
           map.addSource('lowzoom', { ...style.sources.lowzoom, tileSize: rasterTileSize() });
           map.addLayer(layer, before);
         }
-        map.getSource('labels')?.setTiles([labelUrl()]);
         watchDensity();
       }, { once: true });
     })();
 
+    // ---- Labels (vector Toner labels, loaded on first use) ----
+    let labelLayers = [], labelsLoad = null, labelsWanted = false;
+    function loadLabels() {
+      labelsLoad ??= fetch(LABEL_STYLE)
+        .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+        .then((style) => {
+          map.setGlyphs(style.glyphs);
+          map.setSprite(style.sprite);
+          for (const layer of style.layers) {
+            if (layer.source === 'stamen_null') continue;  // a "Null Island" easter egg at 0,0
+            if (!map.getSource(`labels-${layer.source}`)) map.addSource(`labels-${layer.source}`, style.sources[layer.source]);
+            const id = `labels-${layer.id}`;
+            map.addLayer({ ...layer, id, source: `labels-${layer.source}`,
+              layout: { ...layer.layout, visibility: labelsWanted ? 'visible' : 'none' } });
+            labelLayers.push(id);
+          }
+        });
+      return labelsLoad;
+    }
+
     // ---- Layer toggles ----
     const note = document.getElementById('layer-note');
-    function bindToggle(id, layer, { param } = {}) {
+    function bindToggle(id, apply, { param } = {}) {
       const btn = document.getElementById(id);
       const set = (on) => {
         btn.setAttribute('aria-pressed', String(on));
-        map.setLayoutProperty(layer, 'visibility', on ? 'visible' : 'none');
+        apply(on, () => btn.setAttribute('aria-pressed', 'false'));
         if (param) setParam(param, on ? 'true' : null);
       };
       btn.addEventListener('click', () => set(btn.getAttribute('aria-pressed') !== 'true'));
       return set;
     }
+    const showLayers = (...ids) => (on) => {
+      for (const id of ids) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+      if (!on) clearHover();
+    };
     map.on('load', () => {
-      bindToggle('show-buildings', 'buildings');
-      bindToggle('show-parcels', 'parcels');
-      const setLabels = bindToggle('show-labels', 'labels', { param: 'labels' });
+      bindToggle('show-buildings', showLayers('buildings', 'buildings-hover'));
+      bindToggle('show-parcels', showLayers('parcels', 'parcels-hover'));
+      const setLabels = bindToggle('show-labels', (on, failed) => {
+        labelsWanted = on;
+        if (!on) return labelLayers.forEach((id) => map.setLayoutProperty(id, 'visibility', 'none'));
+        loadLabels()
+          .then(() => labelLayers.forEach((id) => map.setLayoutProperty(id, 'visibility', labelsWanted ? 'visible' : 'none')))
+          .catch((e) => { console.warn('labels unavailable', e); labelsLoad = null; labelsWanted = false; failed(); });
+      }, { param: 'labels' });
       if (showLabelsAtStart) setLabels(true);
     });
+
+    // ---- Hover: outline the building (else parcel) under the pointer and describe it ----
+    const tip = document.getElementById('tip');
+    const HOVER_ORDER = ['buildings', 'parcels'];  // buildings sit on parcels and win
+    let hovered = null, lastPoint = null;
+    bgListeners.push((color) => {
+      for (const l of HOVER_ORDER) if (map.getLayer(`${l}-hover`)) map.setPaintProperty(`${l}-hover`, 'line-color', color);
+    });
+    const fmtInt = (v) => Math.round(v).toLocaleString('en-US');
+    function classRange(layer, c) {
+      const b = BREAKS[layer];
+      if (c === 0) return `up to ${fmtInt(b[0])}`;
+      if (c >= b.length) return `over ${fmtInt(b[b.length - 1])}`;
+      return `${fmtInt(b[c - 1] + 1)}–${fmtInt(b[c])}`;
+    }
+    function describeFeature(f) {
+      const layer = f.layer.id, p = f.properties, c = Number(p.c);
+      const colors = layer === 'buildings' ? GREYS : [...GREYS].reverse();
+      const lines = [];
+      if (p.a != null) {
+        const acres = p.a / 43560;
+        lines.push(`${fmtInt(p.a)} sq ft${acres >= 1 ? ` <span class="dim">· ${acres.toFixed(acres < 10 ? 2 : 1)} acres</span>` : ''}`);
+      } else {
+        lines.push(`${classRange(layer, c)} sq ft`);
+      }
+      if (p.ain) lines.push(`<span class="dim">AIN</span> ${String(p.ain).replace(/^(\d{4})(\d{3})(\d{3})$/, '$1-$2-$3')}`);
+      return `<div class="kind"><span class="swatch" style="background:${colors[c] ?? colors[0]}"></span>${layer === 'buildings' ? 'Building' : 'Parcel'}</div>` +
+        lines.map((l) => `<div>${l}</div>`).join('');
+    }
+    function pick(point) {
+      if (map.getZoom() < SWITCH_ZOOM) return null;
+      const layers = HOVER_ORDER.filter((id) => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none');
+      if (!layers.length) return null;
+      const found = map.queryRenderedFeatures(point, { layers });
+      for (const id of HOVER_ORDER) {
+        const f = found.find((g) => g.layer.id === id);
+        if (f) return f;
+      }
+      return null;
+    }
+    function setHoverState(f) {
+      const key = f && f.id != null ? { source: 'features', sourceLayer: f.sourceLayer, id: f.id } : null;
+      if (hovered && key && hovered.sourceLayer === key.sourceLayer && hovered.id === key.id) return;
+      if (hovered) map.setFeatureState(hovered, { hover: false });
+      hovered = key;
+      if (hovered) map.setFeatureState(hovered, { hover: true });
+    }
+    function clearHover() {
+      setHoverState(null);
+      tip.hidden = true;
+    }
+    function updateHover(point) {
+      lastPoint = point;
+      const f = pick(point);
+      if (!f) return clearHover();
+      setHoverState(f);
+      tip.innerHTML = describeFeature(f);
+      tip.hidden = false;
+      // Beside the pointer, flipped away from the window's right and bottom edges.
+      const r = map.getContainer().getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, gap = 14;
+      const x = r.left + point.x, y = r.top + point.y;
+      tip.style.left = `${x + gap + w > window.innerWidth - 8 ? x - gap - w : x + gap}px`;
+      tip.style.top = `${y + gap + h > window.innerHeight - 8 ? y - gap - h : y + gap}px`;
+    }
+    map.on('mousemove', (e) => updateHover(e.point));
+    map.on('click', (e) => {  // touch screens have no hover: tap instead
+      updateHover(e.point);
+      if (e.originalEvent.pointerType === 'touch') lastPoint = null;  // don't re-pick after a pan
+    });
+    map.getCanvas().addEventListener('mouseleave', () => { lastPoint = null; clearHover(); });
+    map.on('movestart', () => { tip.hidden = true; });
+    map.on('moveend', () => { if (lastPoint) updateHover(lastPoint); });
 
     // ---- Zoom readout ----
     const zoomEl = document.getElementById('zoom'), modeEl = document.getElementById('mode');

@@ -26,7 +26,7 @@ the county's ArcGIS Online services.
 - `prototype/` - the data pipeline, experiments and the Mid-Wilshire demo; see
   [prototype/README.md](prototype/README.md)
 
-URL parameters: `?background=<css color or hex>` (as in 2016), `?labels=true`,
+URL parameters: `?background=<css color or hex>` (as in 2016), `?labels=true`, `?scale=view`,
 `?tiles=<base url of the .pmtiles files>`; the hash holds `#zoom/lat/lon`.
 
 ## Running locally

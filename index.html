@@ -82,7 +82,7 @@
     .ramp { display: grid; gap: 4px; }
     .ramp-head { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; }
     .ramp-head span { font: 400 0.7rem var(--font-data); color: var(--ink-dim); }
-    .bar { display: grid; grid-template-columns: repeat(7, 1fr); height: 14px; border: 1px solid var(--panel-line); }
+    .bar { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 14px; border: 1px solid var(--panel-line); }
     .ticks { position: relative; height: 14px; font: 400 0.62rem var(--font-data); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
     .ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 
@@ -94,6 +94,9 @@
     .chip:hover { border-color: var(--ink-dim); }
     .chip[aria-pressed="true"] { border-color: var(--ink); background: rgba(255, 255, 255, 0.08); }
     .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); }
+    .scale-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+    .chip:disabled { opacity: 0.45; cursor: default; }
+    .chip[hidden] { display: none; }
     .layer-note { font: 400 0.68rem var(--font-data); color: var(--ink-dim); margin: 6px 0 0; }
 
     .source { margin: 0; font-size: 0.72rem; line-height: 1.45; color: var(--ink-dim); }
@@ -138,7 +141,13 @@
 
       <div>
         <p class="eyebrow">Area in square feet</p>
-        <div style="display:grid; gap:12px">
+        <div class="scale-row" id="scale" role="group" aria-label="Color scale">
+          <button class="chip" type="button" id="scale-fixed" aria-pressed="true">fixed breaks</button>
+          <button class="chip" type="button" id="scale-view" aria-pressed="false">this view</button>
+          <button class="chip" type="button" id="scale-lock" aria-pressed="false" hidden>lock</button>
+        </div>
+        <p class="layer-note" id="scale-note" hidden></p>
+        <div style="display:grid; gap:12px; margin-top:10px">
           <div class="ramp" id="ramp-buildings"></div>
           <div class="ramp" id="ramp-parcels"></div>
         </div>
@@ -171,6 +180,8 @@
   <script>
     // URL parameters, compatible with the 2016 site:
     //   ?background=<css color name or hex>   ?labels=true
+    // and new ones:
+    //   ?scale=view  (quantiles of the shapes in view at the vector zooms)
     // and for development:
     //   ?tiles=<base url of the .pmtiles files>  (default: CloudFront; ./tiles/ on localhost)
     const params = new URLSearchParams(location.search);
@@ -189,14 +200,40 @@
     const COUNTY_BBOX = [-118.95, 32.75, -117.64, 34.83];
 
     // ---- Legend ----
-    function ramp(el, name, label, colors) {
-      const fmt = (v) => v.toLocaleString('en-US');
+    // Breaks are inclusive upper bounds in sq ft; n breaks make n + 1 classes.
+    const PALETTE = { buildings: GREYS, parcels: [...GREYS].reverse() };
+    // With fewer than 7 classes (quantiles merged by ties), spread them across the whole ramp.
+    function colorsFor(name, k) {
+      const p = PALETTE[name];
+      return k === 1 ? [p[3]] : Array.from({ length: k }, (_, i) => p[Math.round((i * 6) / (k - 1))]);
+    }
+    const fmtTick = (v) => (v >= 10000 ? `${+(v / 1000).toFixed(v < 100000 ? 1 : 0)}k` : v.toLocaleString('en-US'));
+    function ramp(el, label, breaks, colors) {
+      const k = breaks.length + 1;
       el.innerHTML = `<div class="ramp-head">${label}<span>smaller → larger</span></div>
         <div class="bar">${colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
-        <div class="ticks">${BREAKS[name].map((b, i) => `<span style="left:${((i + 1) / 7) * 100}%">${fmt(b)}</span>`).join('')}</div>`;
+        <div class="ticks">${breaks.map((b, i) => `<span style="left:${((i + 1) / k) * 100}%">${fmtTick(b)}</span>`).join('')}</div>`;
     }
-    ramp(document.getElementById('ramp-buildings'), 'buildings', 'Buildings', GREYS);
-    ramp(document.getElementById('ramp-parcels'), 'parcels', 'Parcels', [...GREYS].reverse());
+    const LAYER_NAMES = { buildings: 'Buildings', parcels: 'Parcels' };
+    // ---- Color scale: fixed breaks, or quantiles of the shapes in view (vector zooms only) ----
+    const scale = { mode: params.get('scale') === 'view' ? 'view' : 'fixed', locked: false, breaks: { ...BREAKS } };
+    const isVector = () => (window.__map ? window.__map.getZoom() >= SWITCH_ZOOM : false);
+    const viewScale = () => scale.mode === 'view' && isVector();
+    const activeBreaks = (name) => (viewScale() ? scale.breaks[name] : BREAKS[name]);
+    function renderLegend() {
+      for (const name of ['buildings', 'parcels']) {
+        const b = activeBreaks(name);
+        ramp(document.getElementById(`ramp-${name}`), LAYER_NAMES[name], b, colorsFor(name, b.length + 1));
+      }
+      const noteEl = document.getElementById('scale-note');
+      noteEl.hidden = scale.mode === 'fixed';
+      noteEl.textContent = !isVector()
+        ? 'Applies from z14.5. Zoomed out, the map uses the fixed breaks.'
+        : scale.locked
+          ? 'Locked: these breaks stay as you move.'
+          : 'Seven equal-count classes of the shapes in view; updates as you move.';
+    }
+    renderLegend();
 
     // ---- Background color ----
     const BACKGROUNDS = [
@@ -370,7 +407,7 @@
     }
     const showLayers = (...ids) => (on) => {
       for (const id of ids) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-      if (!on) clearHover();
+      if (!on) clearHover(); else scaleDirty = true;
     };
     map.on('load', () => {
       bindToggle('show-buildings', showLayers('buildings', 'buildings-hover'));
@@ -400,8 +437,14 @@
       return `${fmtInt(b[c - 1] + 1)}–${fmtInt(b[c])}`;
     }
     function describeFeature(f) {
-      const layer = f.layer.id, p = f.properties, c = Number(p.c);
-      const colors = layer === 'buildings' ? GREYS : [...GREYS].reverse();
+      const layer = f.layer.id, p = f.properties;
+      let c = Number(p.c), colors = PALETTE[layer];
+      if (viewScale() && p.a != null) {
+        const b = scale.breaks[layer];
+        c = b.findIndex((x) => p.a <= x);
+        if (c < 0) c = b.length;
+        colors = colorsFor(layer, b.length + 1);
+      }
       const lines = [];
       if (p.a != null) {
         const acres = p.a / 43560;
@@ -464,8 +507,74 @@
       zoomEl.textContent = `z${z.toFixed(1)}`;
       modeEl.textContent = z < SWITCH_ZOOM ? 'pre-rendered raster' : 'vector tiles';
       note.hidden = z >= SWITCH_ZOOM;
+      if ((z >= SWITCH_ZOOM) !== legendVector) { legendVector = z >= SWITCH_ZOOM; renderLegend(); }
     }
+    let legendVector = null;
     map.on('zoom', showZoom); map.on('load', showZoom);
+
+    // ---- Color scale ----
+    // Each recolor makes MapLibre re-process the loaded tiles (the fill color depends on each
+    // shape's data), so breaks are recomputed once the map has stopped and its tiles are in,
+    // and the paint is only replaced when the breaks actually change.
+    let scaleDirty = true;
+    const appliedPaint = {};
+    function quantileBreaks(name) {
+      const areas = new Map();  // by feature id: a shape split across tiles counts once
+      for (const f of map.queryRenderedFeatures({ layers: [name] })) {
+        if (f.properties.a != null) areas.set(f.id ?? `${areas.size}`, f.properties.a);
+      }
+      const a = [...areas.values()].sort((x, y) => x - y), n = a.length;
+      if (n < 2) return null;
+      const breaks = [];
+      for (let i = 1; i < 7; i++) {
+        const b = a[Math.ceil((n * i) / 7) - 1];
+        // Ties (LA lots cluster at standard sizes) merge classes; never leave the top class empty.
+        if (b < a[n - 1] && b !== breaks[breaks.length - 1]) breaks.push(b);
+      }
+      return breaks;
+    }
+    function fillColor(name) {
+      if (scale.mode === 'fixed') return byClass(PALETTE[name]);
+      const b = scale.breaks[name], colors = colorsFor(name, b.length + 1);
+      return b.length ? ['step', ['get', 'a'], colors[0], ...b.flatMap((x, i) => [x + 1, colors[i + 1]])] : colors[0];
+    }
+    function refreshScale() {
+      if (scale.mode === 'view' && !scale.locked && isVector()) {
+        for (const name of ['buildings', 'parcels']) {
+          if (map.getLayoutProperty(name, 'visibility') === 'none') continue;
+          const b = quantileBreaks(name);
+          if (b) scale.breaks[name] = b;
+        }
+      }
+      for (const name of ['buildings', 'parcels']) {
+        const expr = fillColor(name), key = JSON.stringify(expr);
+        if (appliedPaint[name] !== key) { map.setPaintProperty(name, 'fill-color', expr); appliedPaint[name] = key; }
+      }
+      renderLegend();
+    }
+    map.on('moveend', () => { scaleDirty = true; });
+    map.on('idle', () => { if (scaleDirty) { scaleDirty = false; refreshScale(); } });
+    map.on('load', () => {
+      const fixedBtn = document.getElementById('scale-fixed'), viewBtn = document.getElementById('scale-view');
+      const lockBtn = document.getElementById('scale-lock');
+      function setMode(mode) {
+        scale.mode = mode; scale.locked = false;
+        fixedBtn.setAttribute('aria-pressed', String(mode === 'fixed'));
+        viewBtn.setAttribute('aria-pressed', String(mode === 'view'));
+        lockBtn.hidden = mode !== 'view';
+        lockBtn.setAttribute('aria-pressed', 'false');
+        setParam('scale', mode === 'view' ? 'view' : null);
+        refreshScale();
+      }
+      fixedBtn.addEventListener('click', () => setMode('fixed'));
+      viewBtn.addEventListener('click', () => setMode('view'));
+      lockBtn.addEventListener('click', () => {
+        scale.locked = !scale.locked;
+        lockBtn.setAttribute('aria-pressed', String(scale.locked));
+        refreshScale();
+      });
+      if (scale.mode === 'view') setMode('view');
+    });
 
     // ---- Search (Photon, an OpenStreetMap geocoder by Komoot) ----
     const form = document.getElementById('search'), q = document.getElementById('q');

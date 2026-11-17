@@ -25,6 +25,19 @@ server.
   (domain-authenticated for `*.stamen.com`), loaded the first time they are turned on. Search uses
   [Photon](https://photon.komoot.io/). The background color is selectable, as in 2016.
 
+## Screenshots
+
+Square images for social posts (2160 x 2160 px, in [`docs/social/`](docs/social/)). Regenerate
+them with `node prototype/web/social-squares.mjs` (renders from the live site; pass
+`http://localhost:8080/` to render from a local checkout).
+
+<table>
+<tr><td width="50%"><a href="docs/social/01-downtown.jpg"><img src="docs/social/01-downtown.jpg" alt="Downtown, the LA River and the freeways"></a><br><sub>Downtown, the LA River and the freeways</sub></td><td width="50%"><a href="docs/social/02-county.jpg"><img src="docs/social/02-county.jpg" alt="The county, from the Antelope Valley to the coast"></a><br><sub>The county, from the Antelope Valley to the coast</sub></td></tr>
+<tr><td width="50%"><a href="docs/social/03-port.jpg"><img src="docs/social/03-port.jpg" alt="The ports of Los Angeles and Long Beach"></a><br><sub>The ports of Los Angeles and Long Beach</sub></td><td width="50%"><a href="docs/social/04-hover.jpg"><img src="docs/social/04-hover.jpg" alt="Hovering a building: outline and tooltip"></a><br><sub>Hovering a building: outline and tooltip</sub></td></tr>
+<tr><td width="50%"><a href="docs/social/05-this-view.jpg"><img src="docs/social/05-this-view.jpg" alt="The this-view color scale and its legend"></a><br><sub>The <i>this view</i> color scale and its legend</sub></td><td width="50%"><a href="docs/social/06-tomato-hills.jpg"><img src="docs/social/06-tomato-hills.jpg" alt="Beverly Hills and the hills above, on tomato"></a><br><sub>Beverly Hills and the hills above, on tomato</sub></td></tr>
+<tr><td width="50%"><a href="docs/social/07-labels-steelblue.jpg"><img src="docs/social/07-labels-steelblue.jpg" alt="Santa Monica to Venice with labels, on steelblue"></a><br><sub>Santa Monica to Venice with labels, on steelblue</sub></td></tr>
+</table>
+
 Data: County of Los Angeles Assessor parcels (2025 roll) and LARIAC building outlines (2020), from
 the county's ArcGIS Online services.
 

@@ -231,14 +231,33 @@
         <div class="bar">${'<i></i>'.repeat(7)}</div>
         <div class="ticks">${BREAKS[name].map((b, i) => `<span style="left:${((i + 1) / 7) * 100}%">${fmtTick(b)}</span>`).join('')}</div>`;
     }
+    const MIN_SWATCH_PX = 5;  // so a narrow viewport class stays visible
     function placeSwatches(el, name, breaks, colors, range) {
       const F = BREAKS[name], [lo, hi] = range || [F[0], F[F.length - 1]];
       const edges = [range ? axisPos(lo, F, lo, hi) : 0, ...breaks.map((b) => axisPos(b, F, lo, hi)), range ? axisPos(hi, F, lo, hi) : 1];
+      // Give every class at least MIN_SWATCH_PX, taking the room proportionally from the wider ones.
+      const bar = el.querySelector('.bar');
+      const minW = MIN_SWATCH_PX / (bar.clientWidth || 300);
+      const span = edges[edges.length - 1] - edges[0];
+      const raw = colors.map((_, k) => Math.max(0, edges[k + 1] - edges[k]));
+      let widths = raw;
+      if (colors.length * minW >= span) widths = raw.map(() => span / colors.length);
+      else {
+        const small = new Set();
+        for (let changed = true; changed;) {
+          changed = false;
+          const rest = span - small.size * minW;
+          const restRaw = raw.reduce((t, w, k) => t + (small.has(k) ? 0 : w), 0);
+          widths = raw.map((w, k) => (small.has(k) ? minW : (w * rest) / restRaw));
+          widths.forEach((w, k) => { if (!small.has(k) && w < minW) { small.add(k); changed = true; } });
+        }
+      }
+      const lefts = widths.map((_, k) => edges[0] + widths.slice(0, k).reduce((t, w) => t + w, 0));
       const fmt = (v) => Math.round(v).toLocaleString('en-US');
       el.querySelectorAll('.bar i').forEach((sw, k) => {
         if (k >= colors.length) { sw.style.width = '0%'; sw.style.left = `${edges[edges.length - 1] * 100}%`; sw.removeAttribute('title'); return; }
-        sw.style.left = `${edges[k] * 100}%`;
-        sw.style.width = `${Math.max(0, edges[k + 1] - edges[k]) * 100}%`;
+        sw.style.left = `${lefts[k] * 100}%`;
+        sw.style.width = `${widths[k] * 100}%`;
         sw.style.background = colors[k];
         sw.title = k === 0 ? `up to ${fmt(breaks[0] ?? hi)} sq ft`
           : k === breaks.length ? `over ${fmt(breaks[k - 1])} sq ft` : `${fmt(breaks[k - 1] + 1)}–${fmt(breaks[k])} sq ft`;

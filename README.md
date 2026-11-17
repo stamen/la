@@ -13,28 +13,64 @@ server.
   That keeps the dense low-zoom texture the 2016 Mapnik rendering had, which vector tiles cannot
   reproduce.
 - **From z14.5** it shows vector tiles, with buildings/parcels toggles. Hovering (or tapping) a
-  building or parcel outlines it in the page color and shows its area, and a parcel's AIN.
+  building or parcel outlines it in the page color and shows its area, and a parcel's AIN
+  (Assessor ID Number).
+- **Color scale.** *Fixed breaks* (the default) uses the same round-number classes everywhere,
+  matching the raster tiles. At the vector zooms, *this view* switches to seven equal-count
+  classes (quantiles) of the shapes on screen, recomputed when the map stops moving; *lock* keeps
+  the current breaks while panning, to compare places on one scale. In that mode the legend keeps
+  the fixed breaks as its axis and resizes the swatches to where the view's breaks fall on it, so
+  the scale visibly squashes toward one end.
 - Labels are the vector Stamen Toner labels from [Stadia Maps](https://stadiamaps.com/)
-  (domain-authenticated for `*.stamen.com`), loaded the first time they are turned on. Search uses [Photon](https://photon.komoot.io/).
+  (domain-authenticated for `*.stamen.com`), loaded the first time they are turned on. Search uses
+  [Photon](https://photon.komoot.io/). The background color is selectable, as in 2016.
+
+## Screenshots
+
+Square images for social posts (2160 x 2160 px, in [`docs/social/`](docs/social/)). Regenerate
+them with `node prototype/web/social-squares.mjs` (renders from the live site; pass
+`http://localhost:8080/` to render from a local checkout).
+
+<table>
+<tr><td width="50%"><a href="docs/social/01-downtown.jpg"><img src="docs/social/01-downtown.jpg" alt="Downtown, the LA River and the freeways"></a><br><sub>Downtown, the LA River and the freeways</sub></td><td width="50%"><a href="docs/social/02-county.jpg"><img src="docs/social/02-county.jpg" alt="The county, from the Antelope Valley to the coast"></a><br><sub>The county, from the Antelope Valley to the coast</sub></td></tr>
+<tr><td width="50%"><a href="docs/social/03-port.jpg"><img src="docs/social/03-port.jpg" alt="The ports of Los Angeles and Long Beach"></a><br><sub>The ports of Los Angeles and Long Beach</sub></td><td width="50%"><a href="docs/social/04-hover.jpg"><img src="docs/social/04-hover.jpg" alt="Hovering a building: outline and tooltip"></a><br><sub>Hovering a building: outline and tooltip</sub></td></tr>
+<tr><td width="50%"><a href="docs/social/05-this-view.jpg"><img src="docs/social/05-this-view.jpg" alt="The this-view color scale and its legend"></a><br><sub>The <i>this view</i> color scale and its legend</sub></td><td width="50%"><a href="docs/social/06-tomato-hills.jpg"><img src="docs/social/06-tomato-hills.jpg" alt="Beverly Hills and the hills above, on tomato"></a><br><sub>Beverly Hills and the hills above, on tomato</sub></td></tr>
+<tr><td width="50%"><a href="docs/social/07-labels-steelblue.jpg"><img src="docs/social/07-labels-steelblue.jpg" alt="Santa Monica to Venice with labels, on steelblue"></a><br><sub>Santa Monica to Venice with labels, on steelblue</sub></td></tr>
+</table>
 
 Data: County of Los Angeles Assessor parcels (2025 roll) and LARIAC building outlines (2020), from
 the county's ArcGIS Online services.
 
 ## Files
 
-- `index.html` - the site (GitHub Pages, `CNAME` -> la.stamen.com)
-- `prototype/` - the data pipeline, experiments and the Mid-Wilshire demo; see
-  [prototype/README.md](prototype/README.md)
+- `index.html` - the whole site, one file (GitHub Pages from `main`, `CNAME` -> la.stamen.com)
+- `social.jpg` - the social card
+- `prototype/` - the data pipeline (`build_all.sh`, `upload_tiles.py`), experiments and the
+  Mid-Wilshire demo; see [prototype/README.md](prototype/README.md)
 
 URL parameters: `?background=<css color or hex>` (as in 2016), `?labels=true`, `?scale=view`,
 `?tiles=<base url of the .pmtiles files>`; the hash holds `#zoom/lat/lon`.
 
+### Tiles
+
+- `la-raster.pmtiles` - 512 px WebP, z0-15. z11-15 are rendered from the polygons; z0-10 are box
+  averages of z11.
+- `la-vector-v2.pmtiles` - z13-16 (overzoomed beyond), layers `parcels` and `buildings`. Every
+  feature has an `id` that is the same in every tile (the hover outline uses it) and the
+  properties `c` (fixed area class, 0-6), `a` (area in sq ft, rounded) and, on parcels, `ain`.
+
 ## Running locally
 
+No build is needed to work on the page: serve the repo root with any static server and point it
+at the published tiles (on localhost the page otherwise looks for them in `./tiles/`):
+
 ```sh
-node prototype/web/serve.mjs 8080      # serves index.html and /tiles/* from prototype/data
-open http://localhost:8080/#11/34.06/-118.3
+python3 -m http.server 8000
+open "http://localhost:8000/?tiles=https://d2a8fp87hzkuh6.cloudfront.net/#15/34.0615/-118.3005"
 ```
+
+With tiles built locally (see below), `node prototype/web/serve.mjs 8080` serves the page and
+`/tiles/*` from `prototype/data`, with the HTTP range requests PMTiles needs.
 
 The social card (`social.jpg`, referenced by the Open Graph tags in `index.html`) is rendered from
 the map: `node prototype/web/social-card.mjs` (uses the live site; pass `http://localhost:8080/` to

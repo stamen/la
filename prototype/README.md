@@ -4,8 +4,10 @@ Experiments for rebuilding la.stamen.com on a static stack: MapLibre + PMTiles i
 storage, with **pre-rendered raster tiles at low zoom** (to keep the dense sub-pixel texture the old
 Mapnik/CARTO version had) and **vector tiles at high zoom**.
 
-Status: working end to end for a ~65 x 40 km study window over central LA, using 2025 Assessor
-parcels (1.46M) and 2020 LARIAC building outlines (2.02M) from LA County's ArcGIS Online services.
+Status: this became the live site (`index.html` at the repo root). The tiles cover all of LA County:
+2025 Assessor parcels (2.43M) and 2020 LARIAC building outlines (3.12M) from the county's ArcGIS
+Online services. The screenshots and the "Sizes for the study window" notes below are from the
+earlier ~65 x 40 km study window over central LA.
 
 | zoom | view |
 |---|---|
@@ -16,37 +18,46 @@ parcels (1.46M) and 2020 LARIAC building outlines (2.02M) from LA County's ArcGI
 
 ## Pipeline
 
+`bash build_all.sh` runs the whole countywide build (~1.5 h on 4 cores, ~10 GB of disk; it installs
+the Python packages and builds tippecanoe if needed), and `python upload_tiles.py [file ...]` uploads
+the results to S3; see the [root README](../README.md#hosting-the-tiles-on-aws-s3--cloudfront).
+The steps, for running them one at a time (`--bbox all` for the whole county):
+
 ```sh
 pip install skia-python shapely pyarrow numpy pillow pmtiles
-python fetch_arcgis.py parcels data/parcels.parquet                 # ~20 min, resumable
-python fetch_arcgis.py buildings data/lariac_buildings.parquet      # ~30 min, resumable
+python fetch_arcgis.py parcels data/parcels.parquet --bbox all          # resumable
+python fetch_arcgis.py buildings data/lariac_buildings.parquet --bbox all
 python prep.py data/parcels.parquet data/parcels.npz --layer parcels --area-field area_ft2
 python prep.py data/lariac_buildings.parquet data/buildings.npz --layer buildings --area-field area_ft2
 python experiment.py && python compare.py        # method comparison -> out/sheet_crops.png
-python build_raster_tiles.py data/la-raster.pmtiles                 # z9-15, 512 px WebP, ~35 min on 4 cores
-python build_overviews.py data/la-raster.pmtiles data/la-raster-ov.pmtiles --from-zoom 11 && mv data/la-raster-ov.pmtiles data/la-raster.pmtiles  # z0-10 by averaging down
+python build_raster_tiles.py data/la-raster-z11-15.pmtiles --bbox data --minzoom 11 --maxzoom 15   # ~1.3 h countywide
+python build_overviews.py data/la-raster-z11-15.pmtiles data/la-raster.pmtiles --from-zoom 11 --to-zoom 0  # z0-10 by averaging down
 python export_geojsonseq.py data/parcels.parquet --layer parcels --area-field area_ft2 > data/parcels.geojsonl
 python export_geojsonseq.py data/lariac_buildings.parquet --layer buildings --area-field area_ft2 > data/buildings.geojsonl
 tippecanoe -o data/la-vector-v2.pmtiles -Z13 -z16 --drop-rate=1 --no-feature-limit --no-tile-size-limit \
   --no-tiny-polygon-reduction --detect-shared-borders \
   -L parcels:data/parcels.geojsonl -L buildings:data/buildings.geojsonl
 # view locally: node web/serve.mjs 8080   -> http://localhost:8080/#12/34.06/-118.3
-#   (serves web/ and /tiles/* from data/, with the Range requests PMTiles needs)
-# screenshots: cd web && node screenshot.mjs out 14/34.0715/-118.336
+#   (serves the repo root and /tiles/* from data/, with the Range requests PMTiles needs)
+# screenshots: node web/screenshot.mjs out 14/34.0715/-118.336
 ```
 
 ## Files
 
+- `build_all.sh` - the full countywide build; `upload_tiles.py` - upload to S3
 - `fetch_arcgis.py` - parcels and LARIAC buildings from LA County's ArcGIS Online feature services
 - `fetch_overture_buildings.py` - Overture buildings (earlier stand-in, not used now)
-- `web/index.html` - the MapLibre viewer; `web/screenshot.mjs` - Playwright screenshots
+- `prep.py` - polygons and area classes into compact arrays for the renderer
+- `web/serve.mjs` - local server with range requests; `web/screenshot.mjs` - Playwright screenshots;
+  `web/social-card.mjs` - renders `social.jpg`
 - `area.py` - study area (1024x640 px at z11 around Koreatown) and Web Mercator helpers
 - `palette.py` - the 2016 7-class Greys palette, the round-number class breaks, and the 2016 breaks for reference
 - `compare_breaks.py` - renders candidate class breaks side by side and prints class shares
 - `render.py` - Skia renderer: each polygon drawn separately with coverage anti-aliasing, transparent background
 - `experiment.py`, `compare.py` - method comparison
-- `build_raster_tiles.py` - low-zoom raster PMTiles
-- `export_geojsonseq.py` - input for tippecanoe
+- `build_raster_tiles.py` - low-zoom raster PMTiles; `build_overviews.py` - z0-10 by averaging down
+- `export_geojsonseq.py` - input for tippecanoe (id, area class, area, AIN)
+- `subset_pmtiles.py`, `artifact/` - cut a small area out of the archives for the Mid-Wilshire demo page
 
 ## Findings
 

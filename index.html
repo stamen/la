@@ -102,6 +102,8 @@
     .scale-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
     .chip:disabled { opacity: 0.45; cursor: default; }
     .chip[hidden] { display: none; }
+    /* Two lines reserved, so the legend below doesn't jump as the note changes. */
+    #scale-note { line-height: 1.35; min-height: calc(2 * 1.35em); }
     .layer-note { font: 400 0.68rem var(--font-data); color: var(--ink-dim); margin: 6px 0 0; }
 
     .source { margin: 0; font-size: 0.72rem; line-height: 1.45; color: var(--ink-dim); }
@@ -151,7 +153,7 @@
           <button class="chip" type="button" id="scale-view" aria-pressed="false">this view</button>
           <button class="chip" type="button" id="scale-lock" aria-pressed="false" hidden>lock</button>
         </div>
-        <p class="layer-note" id="scale-note" hidden></p>
+        <p class="layer-note" id="scale-note"></p>
         <div style="display:grid; gap:12px; margin-top:10px">
           <div class="ramp" id="ramp-buildings"></div>
           <div class="ramp" id="ramp-parcels"></div>
@@ -276,12 +278,13 @@
         placeSwatches(document.getElementById(`ramp-${name}`), name, b, colorsFor(name, b.length + 1), viewScale() ? scale.range[name] : null);
       }
       const noteEl = document.getElementById('scale-note');
-      noteEl.hidden = scale.mode === 'fixed';
-      noteEl.textContent = !isVector()
+      noteEl.textContent = scale.mode === 'fixed'
+        ? 'Round-number breaks, the same across the county, so any two places compare directly.'
+        : !isVector()
         ? 'Applies from z14.5. Zoomed out, the map uses the fixed breaks.'
         : scale.locked
           ? 'Locked: these breaks stay as you move.'
-          : 'Equal-count classes of the shapes in view, drawn on the fixed scale; updates as you move.';
+          : 'Equal-count classes of what is in view, on the fixed scale. Updates as you move.';
     }
     renderLegend();
 
